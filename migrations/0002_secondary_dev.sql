@@ -69,10 +69,20 @@ CREATE TABLE IF NOT EXISTS user_watermarks (
 );
 
 -- ========== 6. 新增系统设置项 ==========
-INSERT OR IGNORE INTO settings (key, value) VALUES ('invite_only', '1');
+INSERT OR IGNORE INTO settings (key, value) VALUES ('invite_only', '0');
 INSERT OR IGNORE INTO settings (key, value) VALUES ('encrypted_attachments_enabled', '0');
 INSERT OR IGNORE INTO settings (key, value) VALUES ('feature_likes', '1');
 INSERT OR IGNORE INTO settings (key, value) VALUES ('feature_bookmarks', '1');
 INSERT OR IGNORE INTO settings (key, value) VALUES ('feature_comments', '1');
 INSERT OR IGNORE INTO settings (key, value) VALUES ('feature_posts', '1');
 INSERT OR IGNORE INTO settings (key, value) VALUES ('watermark_enabled', '1');
+
+-- ========== 7. 速率限制表 ==========
+CREATE TABLE IF NOT EXISTS rate_limits (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  ip TEXT NOT NULL,
+  endpoint TEXT NOT NULL,
+  count INTEGER DEFAULT 1,
+  window_start INTEGER NOT NULL,
+  UNIQUE(ip, endpoint)
+);

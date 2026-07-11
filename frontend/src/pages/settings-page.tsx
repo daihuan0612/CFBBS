@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
-import { apiFetch, getSecurityHeaders } from '@/lib/api';
+import { apiFetch, API_BASE, getSecurityHeaders } from '@/lib/api';
 import { getUser, logout, setUser, type User } from '@/lib/auth';
 import { validateText } from '@/lib/validators';
 
@@ -19,10 +19,6 @@ export function SettingsPage() {
 
 	const [username, setUsername] = React.useState(user?.username || '');
 	const [avatarUrl, setAvatarUrl] = React.useState(user?.avatar_url || '');
-	const [emailNotifications, setEmailNotifications] = React.useState<boolean>(user?.email_notifications !== false);
-
-	const [emailNew, setEmailNew] = React.useState('');
-	const [emailTotp, setEmailTotp] = React.useState('');
 
 	const [totpSecret, setTotpSecret] = React.useState('');
 	const [totpUri, setTotpUri] = React.useState('');
@@ -59,7 +55,6 @@ export function SettingsPage() {
 				body: JSON.stringify({
 					username,
 					avatar_url: avatarUrl,
-					email_notifications: emailNotifications
 				})
 			});
 			setUser(data.user);
@@ -92,27 +87,6 @@ export function SettingsPage() {
 			const data = (await res.json()) as any;
 			if (!res.ok) throw new Error(data?.error || '上传失败');
 			setAvatarUrl(data.url);
-		} catch (e: any) {
-			setError(String(e?.message || e));
-		} finally {
-			setLoading(false);
-		}
-	}
-
-	async function requestEmailChange() {
-		if (!user) return;
-		setError('');
-		if (!emailNew) return setError('请输入新邮箱');
-		setLoading(true);
-		try {
-			await apiFetch('/user/change-email', {
-				method: 'POST',
-				headers: getSecurityHeaders('POST'),
-				body: JSON.stringify({ new_email: emailNew, totp_code: emailTotp })
-			});
-			alert('验证邮件已发送至新地址，请前往新邮箱确认。');
-			setEmailNew('');
-			setEmailTotp('');
 		} catch (e: any) {
 			setError(String(e?.message || e));
 		} finally {
@@ -189,7 +163,7 @@ export function SettingsPage() {
 				<div className="flex items-center justify-between">
 					<div>
 						<h1 className="text-2xl font-semibold tracking-tight">设置</h1>
-						<p className="text-sm text-muted-foreground">对账号资料、邮箱和 2FA 进行管理。</p>
+						<p className="text-sm text-muted-foreground">管理个人资料和 2FA 安全设置。</p>
 					</div>
 					<Button
 						variant="outline"
@@ -221,7 +195,7 @@ export function SettingsPage() {
 						</div>
 
 						<div className="space-y-2">
-							<Label htmlFor="avatar-file">上传头像 (最大 500KB)</Label>
+							<Label htmlFor="avatar-file">上传头像 (最大 2MB)</Label>
 							<Input
 								id="avatar-file"
 								type="file"
@@ -234,49 +208,9 @@ export function SettingsPage() {
 							/>
 						</div>
 
-						<label className="flex items-center gap-2 text-sm">
-							<input
-								type="checkbox"
-								className="h-4 w-4"
-								checked={emailNotifications}
-								onChange={(e) => setEmailNotifications(e.target.checked)}
-							/>
-							接收邮件通知 (仅限评论)
-						</label>
-
 						<Button onClick={saveProfile} disabled={loading}>
 							{loading ? '保存中...' : '保存资料'}
 						</Button>
-					</CardContent>
-				</Card>
-
-				<Card>
-					<CardHeader>
-						<CardTitle>修改邮箱</CardTitle>
-					</CardHeader>
-					<CardContent className="space-y-4">
-						<div className="grid gap-4 sm:grid-cols-2">
-							<div className="space-y-2">
-								<Label htmlFor="email-new">新邮箱地址</Label>
-								<Input id="email-new" type="email" value={emailNew} onChange={(e) => setEmailNew(e.target.value)} />
-							</div>
-							<div className="space-y-2">
-								<Label htmlFor="email-totp">双重验证码 (若开启)</Label>
-								<Input
-									id="email-totp"
-									type="text"
-									inputMode="numeric"
-									maxLength={6}
-									autoComplete="one-time-code"
-									value={emailTotp}
-									onChange={(e) => setEmailTotp(e.target.value)}
-								/>
-							</div>
-						</div>
-						<Button onClick={requestEmailChange} disabled={loading}>
-							{loading ? '处理中...' : '发送确认邮件'}
-						</Button>
-						<div className="text-sm text-muted-foreground">确认链接将发送到新邮箱。</div>
 					</CardContent>
 				</Card>
 
@@ -286,7 +220,7 @@ export function SettingsPage() {
 					</CardHeader>
 					<CardContent className="space-y-4">
 						{user?.totp_enabled ? (
-							<div className="rounded-md border bg-muted/30 p-3 text-sm">✅ 2FA 已启用</div>
+							<div className="rounded-md border bg-muted/30 p-3 text-sm">2FA 已启用</div>
 						) : (
 							<>
 								<div className="text-sm text-muted-foreground">启用 2FA 以保护您的账户。</div>

@@ -375,9 +375,16 @@ export default {
 			console.log('Admin user seeded:', adminEmail);
 		};
 
-		// perform initialization before security setup
-		await ensureSchema();
-		await seedAdmin();
+		// perform initialization before security setup (runs only once per isolate)
+		const initOnce = async () => {
+			await ensureSchema();
+			await seedAdmin();
+		};
+		const INIT_KEY = '__cfbbs_init_done';
+		if (!(globalThis as any)[INIT_KEY]) {
+			(globalThis as any)[INIT_KEY] = true;
+			await initOnce();
+		}
 
 		let security: Security;
 		try {

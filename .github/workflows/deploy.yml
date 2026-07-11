@@ -77,24 +77,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
 
-      # ── Worker: deploy first so we know the real URL ──
-      - name: Deploy Worker
-        id: worker_deploy
-        run: |
-          DEPLOY_OUTPUT=$(npx wrangler deploy 2>&1)
-          echo "$DEPLOY_OUTPUT"
-          # Extract the workers.dev URL from wrangler output
-          WORKER_URL=$(echo "$DEPLOY_OUTPUT" | grep -o 'https://[^ ]*\.workers\.dev' | head -1)
-          if [ -z "$WORKER_URL" ]; then
-            # Fallback: construct from project name
-            WORKER_URL="https://cfbbs.$CLOUDFLARE_ACCOUNT_ID.workers.dev"
-            echo "Could not extract URL, using fallback: $WORKER_URL"
-          fi
-          echo "worker_url=$WORKER_URL" >> $GITHUB_OUTPUT
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
-
+      # ── Worker: upload secrets before deploying ──
       - name: Upload Worker secrets
         run: |
           npx wrangler secret put JWT_SECRET <<< "$JWT_SECRET"
@@ -114,6 +97,24 @@ jobs:
           ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
           ADMIN_NICKNAME: ${{ secrets.ADMIN_NICKNAME }}
+
+      # ── Worker: deploy so we know the real URL ──
+      - name: Deploy Worker
+        id: worker_deploy
+        run: |
+          DEPLOY_OUTPUT=$(npx wrangler deploy 2>&1)
+          echo "$DEPLOY_OUTPUT"
+          # Extract the workers.dev URL from wrangler output
+          WORKER_URL=$(echo "$DEPLOY_OUTPUT" | grep -o 'https://[^ ]*\.workers\.dev' | head -1)
+          if [ -z "$WORKER_URL" ]; then
+            # Fallback: construct from project name
+            WORKER_URL="https://cfbbs.$CLOUDFLARE_ACCOUNT_ID.workers.dev"
+            echo "Could not extract URL, using fallback: $WORKER_URL"
+          fi
+          echo "worker_url=$WORKER_URL" >> $GITHUB_OUTPUT
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
 
       - name: Upload BASE_URL (optional)
         run: |

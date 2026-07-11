@@ -75,11 +75,28 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
 		throw new Error('登录已过期，请重新登录');
 	}
 	const text = await res.text();
-	const data = text ? (JSON.parse(text) as any) : null;
 	if (!res.ok) {
-		throw new Error(data?.error || `请求失败 (${res.status})`);
+		// Try to parse as JSON error, fall back to status text if it's HTML
+		let message = `请求失败 (${res.status})`;
+		if (text) {
+			try {
+				const parsed = JSON.parse(text);
+				message = parsed?.error || message;
+			} catch {
+				// not JSON — likely Cloudflare HTML error page, worker down, etc.
+				if (text.includes('<!DOCTYPE') || text.includes('<html')) {
+					message = '服务器暂时不可用，请稍后重试';
+				}
+			}
+		}
+		throw new Error(message);
 	}
-	return data as T;
+	if (!text) return null as unknown as T;
+	try {
+		return JSON.parse(text) as T;
+	} catch {
+		throw new Error('服务器返回了无效的数据，请稍后重试');
+	}
 }
 
 export function formatDate(dateString: string | null | undefined) {
