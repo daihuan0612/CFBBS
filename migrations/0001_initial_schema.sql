@@ -109,5 +109,5 @@ INSERT INTO users (email, username, password, role, verified, nickname) VALUES
 
 INSERT INTO categories (name) VALUES ('General'), ('Tech'), ('Random');
 
-INSERT INTO posts (author_id, title, content, category_id) VALUES (1, 'Welcome to CForum', 'This is an official announcement from the admin.', 1);
+INSERT INTO posts (author_id, title, content, category_id) VALUES (1, 'Welcome to 侃侃看', 'This is an official announcement from the admin.', 1);
 INSERT INTO posts (author_id, title, content, category_id) VALUES (2, 'Hello World', 'This is the first post by Alice!', 2);

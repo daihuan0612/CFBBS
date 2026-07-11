@@ -1,4 +1,4 @@
--- CForum 二次开发: 新增表结构
+-- 侃侃看 二次开发: 新增表结构
 -- 执行: wrangler d1 migrations apply cforum-db
 
 -- ========== 1. 邀请码表 ==========
