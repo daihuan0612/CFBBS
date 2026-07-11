@@ -1,15 +1,15 @@
-name: Deploy to Cloudflare
+name: Deploy CFBBS to Cloudflare
 
 on:
   push:
     branches:
-      - main
+      - master
   workflow_dispatch:
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    name: Deploy Pages + Workers
+    name: Deploy Pages + Workers + D1 + R2
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -26,10 +26,9 @@ jobs:
       - name: Build frontend
         run: npm run build:frontend
 
-      - name: Ensure D1 database exists in current account
+      - name: Ensure D1 database exists
         run: |
           set -euo pipefail
-
           DB_ID=$(npx wrangler d1 list --json | node -e '
             let input = "";
             process.stdin.on("data", c => input += c);
@@ -39,9 +38,8 @@ jobs:
               process.stdout.write(db?.uuid ?? "");
             });
           ')
-
           if [ -z "$DB_ID" ]; then
-            echo "🆕 D1 database cforum-db not found in this account, creating..."
+            echo "Creating D1 database cforum-db..."
             npx wrangler d1 create cforum-db
             DB_ID=$(npx wrangler d1 list --json | node -e '
               let input = "";
@@ -53,37 +51,69 @@ jobs:
               });
             ')
           fi
-
           if [ -z "$DB_ID" ]; then
-            echo "❌ Failed to resolve D1 database id for cforum-db"
+            echo "Failed to resolve D1 database id for cforum-db"
             exit 1
           fi
-
           sed -i -E "s/\"database_id\": \"[^\"]+\"/\"database_id\": \"$DB_ID\"/" wrangler.jsonc
-          echo "✅ Using D1 database id: $DB_ID"
+          echo "D1 database id: $DB_ID"
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
 
-      - name: Deploy to Cloudflare Workers and Pages
+      - name: Run D1 migrations
+        run: npx wrangler d1 migrations apply cforum-db --remote
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+
+      - name: Deploy Worker
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
           accountId: ${{ secrets.CF_ACCOUNT_ID }}
-          command: deploy --env=""
-          secrets: |
-            JWT_SECRET
+          command: deploy
+
+      - name: Upload JWT_SECRET
+        run: npx wrangler secret put JWT_SECRET <<< "$JWT_SECRET"
         env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
+
+      - name: Upload admin credentials
+        run: |
+          if [ -n "$ADMIN_EMAIL" ]; then
+            npx wrangler secret put ADMIN_EMAIL <<< "$ADMIN_EMAIL"
+          fi
+          if [ -n "$ADMIN_PASSWORD" ]; then
+            npx wrangler secret put ADMIN_PASSWORD <<< "$ADMIN_PASSWORD"
+          fi
+          if [ -n "$ADMIN_NICKNAME" ]; then
+            npx wrangler secret put ADMIN_NICKNAME <<< "$ADMIN_NICKNAME"
+          fi
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          ADMIN_NICKNAME: ${{ secrets.ADMIN_NICKNAME }}
+
+      - name: Upload BASE_URL (optional)
+        run: |
+          if [ -n "$BASE_URL" ]; then
+            npx wrangler secret put BASE_URL <<< "$BASE_URL"
+          fi
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          BASE_URL: ${{ secrets.BASE_URL }}
 
       - name: Upload Turnstile secrets (optional)
         run: |
           if [ -n "$TURNSTILE_SITE_KEY" ]; then
-            echo "🔐 Uploading Turnstile configuration..."
-            npx wrangler secret put TURNSTILE_SITE_KEY --env="" <<< "$TURNSTILE_SITE_KEY"
-            npx wrangler secret put TURNSTILE_SECRET_KEY --env="" <<< "$TURNSTILE_SECRET_KEY"
-          else
-            echo "⏭️  Skipping Turnstile configuration (not configured)"
+            npx wrangler secret put TURNSTILE_SITE_KEY <<< "$TURNSTILE_SITE_KEY"
+            npx wrangler secret put TURNSTILE_SECRET_KEY <<< "$TURNSTILE_SECRET_KEY"
           fi
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
@@ -91,51 +121,13 @@ jobs:
           TURNSTILE_SITE_KEY: ${{ secrets.TURNSTILE_SITE_KEY }}
           TURNSTILE_SECRET_KEY: ${{ secrets.TURNSTILE_SECRET_KEY }}
 
-      - name: Upload BASE_URL (optional)
-        run: |
-          if [ -n "$BASE_URL" ]; then
-            echo "🌐 Uploading BASE_URL configuration..."
-            npx wrangler secret put BASE_URL --env="" <<< "$BASE_URL"
-          else
-            echo "⏭️  Skipping BASE_URL configuration (will use request origin)"
-          fi
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
-          BASE_URL: ${{ secrets.BASE_URL }}
-
-      - name: Upload SMTP secrets (optional)
-        run: |
-          if [ -n "$SMTP_HOST" ]; then
-            echo "📧 Uploading SMTP configuration..."
-            npx wrangler secret put SMTP_HOST --env="" <<< "$SMTP_HOST"
-            npx wrangler secret put SMTP_PORT --env="" <<< "$SMTP_PORT"
-            npx wrangler secret put SMTP_USER --env="" <<< "$SMTP_USER"
-            npx wrangler secret put SMTP_PASS --env="" <<< "$SMTP_PASS"
-            npx wrangler secret put SMTP_FROM --env="" <<< "$SMTP_FROM"
-            if [ -n "$SMTP_FROM_NAME" ]; then
-              npx wrangler secret put SMTP_FROM_NAME --env="" <<< "$SMTP_FROM_NAME"
-            fi
-          else
-            echo "⏭️  Skipping SMTP configuration (not configured)"
-          fi
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
-          SMTP_HOST: ${{ secrets.SMTP_HOST }}
-          SMTP_PORT: ${{ secrets.SMTP_PORT }}
-          SMTP_USER: ${{ secrets.SMTP_USER }}
-          SMTP_PASS: ${{ secrets.SMTP_PASS }}
-          SMTP_FROM: ${{ secrets.SMTP_FROM }}
-          SMTP_FROM_NAME: ${{ secrets.SMTP_FROM_NAME }}
-
       - name: Ensure Cloudflare Pages project exists
         run: |
-          if npx wrangler pages project list | grep -q "cforum"; then
-            echo "✅ Pages project 'cforum' already exists"
+          if npx wrangler pages project list | grep -q "cfbbs"; then
+            echo "Pages project cfbbs already exists"
           else
-            echo "🆕 Creating Pages project 'cforum'"
-            npx wrangler pages project create cforum --production-branch main
+            echo "Creating Pages project cfbbs"
+            npx wrangler pages project create cfbbs --production-branch master
           fi
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
@@ -146,11 +138,11 @@ jobs:
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
           accountId: ${{ secrets.CF_ACCOUNT_ID }}
-          command: pages deploy public --project-name=cforum
+          command: pages deploy public --project-name=cfbbs
 
       - name: Success
         run: |
-          echo "✅ 部署完成！"
-          echo "📍 Pages: https://cforum.pages.dev (静态资源 - 免费无限)"
-          echo "📍 Worker: https://cforum.workers.dev (API - 按需计费)"
-          echo "💡 使用 GitHub Secrets 配置自定义域名"
+          echo "部署完成！"
+          echo "Worker API: https://cfbbs.<你的用户名>.workers.dev"
+          echo "Pages 站点: https://cfbbs.pages.dev"
+          echo "首次访问会触发 ensureSchema 自动建表 + 创建管理员账号"
