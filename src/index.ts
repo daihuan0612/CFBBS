@@ -380,6 +380,10 @@ export default {
 		const initOnce = async () => {
 			await ensureSchema();
 			await seedAdmin();
+			// Seed admin-only "公告" category
+			try {
+				await env.cforum_db.prepare("INSERT OR IGNORE INTO categories (name) VALUES ('公告')").run();
+			} catch { /* ignore if already exists */ }
 		};
 		const INIT_KEY = '__cfbbs_init_done';
 		if (!(globalThis as any)[INIT_KEY]) {
@@ -1152,10 +1156,20 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 			}
 		}
 
-		// GET /api/categories
+		// GET /api/categories — filter admin-only categories
 		if (url.pathname === '/api/categories' && method === 'GET') {
 			try {
-				const { results } = await env.cforum_db.prepare('SELECT * FROM categories ORDER BY created_at ASC').all();
+				let isAdmin = false;
+				try {
+					const admin = await authenticate(request);
+					isAdmin = admin.role === 'admin';
+				} catch { /* not logged in or not admin */ }
+
+				const { results } = await env.cforum_db.prepare(
+					isAdmin
+						? 'SELECT * FROM categories ORDER BY created_at ASC'
+						: "SELECT id, name, created_at FROM categories WHERE name != '公告' ORDER BY created_at ASC"
+				).all();
 				return jsonResponse(results);
 			} catch (e) {
 				return handleError(e);
@@ -1191,7 +1205,7 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 				const { name } = body;
 				if (!name) return jsonResponse({ error: 'Missing name' }, 400);
 
-				await env.cforum_db.prepare('UPDATE categories SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(name, id).run();
+				await env.cforum_db.prepare('UPDATE categories SET name = ? WHERE id = ?').bind(name, id).run();
 				await security.logAudit(userPayload.id, 'UPDATE_CATEGORY', 'category', id, { name }, request);
 				return jsonResponse({ success: true });
 			} catch (e) {
@@ -1829,7 +1843,7 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 				if (content.length > 3000) return jsonResponse({ error: 'Content too long (Max 3000 chars)' }, 400);
 				if (hasControlCharacters(title) || hasControlCharacters(content)) return jsonResponse({ error: 'Title or content contains invalid control characters' }, 400);
 
-				// Validate Category
+				// Validate Category if provided
 				if (category_id) {
 					const category = await env.cforum_db.prepare('SELECT id FROM categories WHERE id = ?').bind(category_id).first();
 					if (!category) return jsonResponse({ error: 'Category not found' }, 400);
@@ -2008,10 +2022,9 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 					.replace(/'/g, '&#039;');
 
 				// Validate Category
-				if (category_id) {
-					const category = await env.cforum_db.prepare('SELECT id FROM categories WHERE id = ?').bind(category_id).first();
-					if (!category) return jsonResponse({ error: 'Category not found' }, 400);
-				}
+				if (!category_id) return jsonResponse({ error: '请选择分类' }, 400);
+				const category = await env.cforum_db.prepare('SELECT id FROM categories WHERE id = ?').bind(category_id).first();
+				if (!category) return jsonResponse({ error: 'Category not found' }, 400);
 
 				const { success } = await env.cforum_db.prepare(
 					'INSERT INTO posts (author_id, title, content, category_id) VALUES (?, ?, ?, ?)'

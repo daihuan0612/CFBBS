@@ -665,14 +665,14 @@ export function IndexPage() {
 										<Input id="new-title" maxLength={30} value={newTitle} onChange={(e) => setNewTitle(e.target.value)} required />
 									</div>
 									<div className="space-y-2">
-										<Label htmlFor="new-category">分类 (可选)</Label>
+										<Label htmlFor="new-category">分类</Label>
 										<select
 											id="new-category"
 											className="h-9 w-full rounded-md border bg-background px-3 text-sm"
 											value={newCategoryId}
 											onChange={(e) => setNewCategoryId(e.target.value)}
 										>
-											<option value="">无分类</option>
+											<option value="">-- 请选择分类 --</option>
 											{categories.map((c) => (
 												<option key={c.id} value={String(c.id)}>
 													{c.name}
