@@ -60,6 +60,7 @@ export function SettingsPage() {
 			setUser(data.user);
 			setUserState(data.user);
 			alert('资料已更新');
+			window.location.href = '/';
 		} catch (e: any) {
 			setError(String(e?.message || e));
 		} finally {

@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { ArrowLeft, Eye, EyeOff, Heart, Lock, ExternalLink, MoreVertical, Pin, Pencil, Reply, Shield, Trash2, User, X } from 'lucide-react';
+import { AlignCenter, ArrowLeft, Cloud, Eye, EyeOff, Heart, Indent, Lock, ExternalLink, MoreVertical, Pin, Pencil, Reply, Shield, Trash2, User, Video, X } from 'lucide-react';
 
 import { TurnstileWidget } from '@/components/turnstile';
 import { PageShell } from '@/components/page-shell';
@@ -55,6 +55,12 @@ export function PostPage() {
 	const [verifiedLinks, setVerifiedLinks] = React.useState<Record<number, string>>({});
 	const attEnabled = config?.encrypted_attachments_enabled === true;
 
+	const [videoDialogOpen, setVideoDialogOpen] = React.useState(false);
+	const [videoUrl, setVideoUrl] = React.useState('');
+	const [cloudDialogOpen, setCloudDialogOpen] = React.useState(false);
+	const [cloudLinkUrl, setCloudLinkUrl] = React.useState('');
+	const [cloudLinkName, setCloudLinkName] = React.useState('');
+
 	function insertIntoEditContent(insertText: string) {
 		if (editContentRef.current) {
 			const el = editContentRef.current;
@@ -78,6 +84,46 @@ export function PostPage() {
 	const [adminMenuOpen, setAdminMenuOpen] = React.useState(false);
 	const adminMenuRef = React.useRef<HTMLDivElement | null>(null);
 	const [allCategories, setAllCategories] = React.useState<Category[]>([]);
+
+	function insertEditCenter() {
+		insertIntoEditContent('\n<div align="center">\n\n</div>\n');
+	}
+	function insertEditIndent() {
+		insertIntoEditContent('\n&emsp;&emsp;\n');
+	}
+	function insertEditVideo() {
+		if (!videoUrl.trim()) return;
+		const url = videoUrl.trim();
+		const isYouTube = url.includes('youtube.com/watch?v=') || url.includes('youtu.be/');
+		const isBilibili = url.includes('bilibili.com/video/');
+		if (isYouTube) {
+			const match = url.match(/(?:v=|\/)([\w\-]{11})/);
+			if (match) insertIntoEditContent(`\n<div class="youtube-embed"><iframe src="https://www.youtube.com/embed/${match[1]}" frameborder="0" allowfullscreen></iframe></div>\n`);
+		} else if (isBilibili) {
+			const match = url.match(/video\/(BV[\w]+)/);
+			if (match) insertIntoEditContent(`\n<div class="bilibili-embed"><iframe src="https://player.bilibili.com/player.html?bvid=${match[1]}" frameborder="0" allowfullscreen></iframe></div>\n`);
+		} else {
+			insertIntoEditContent(`\n<video controls width="100%"><source src="${url}" type="video/mp4"></video>\n`);
+		}
+		setVideoUrl('');
+		setVideoDialogOpen(false);
+	}
+	function insertEditCloudLink() {
+		if (!cloudLinkUrl.trim()) return;
+		insertIntoEditContent(`\n[${cloudLinkName.trim() || '网盘链接'}](${cloudLinkUrl.trim()})\n`);
+		setCloudLinkUrl('');
+		setCloudLinkName('');
+		setCloudDialogOpen(false);
+	}
+	function handleEditKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+		if (e.ctrlKey || e.metaKey) {
+			switch (e.key) {
+				case 'k': e.preventDefault(); setVideoDialogOpen(true); break;
+				case 'b': e.preventDefault(); insertIntoEditContent('****'); break;
+				case 'i': e.preventDefault(); insertIntoEditContent('**'); break;
+			}
+		}
+	}
 
 	function getPostIdFromPath() {
 		const params = new URLSearchParams(window.location.search);
@@ -530,13 +576,28 @@ export function PostPage() {
 											<Input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} maxLength={30} />
 										</div>
 										<div className="space-y-2">
-											<div className="flex items-center justify-end">
-												<Button type="button" variant="outline" size="sm" onClick={() => setEditPreviewOpen((v) => !v)}>
-													{editPreviewOpen ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-													<span className="sr-only">{editPreviewOpen ? '关闭预览' : '打开预览'}</span>
-												</Button>
+											<div className="flex flex-wrap items-center justify-between gap-2">
+												<Label>内容 (支持 Markdown)</Label>
+												<div className="flex items-center gap-2">
+													<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="居中" onClick={insertEditCenter}>
+														<AlignCenter className="h-3.5 w-3.5" />
+													</Button>
+													<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="增加缩进" onClick={insertEditIndent}>
+														<Indent className="h-3.5 w-3.5" />
+													</Button>
+													<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="插入视频" onClick={() => setVideoDialogOpen(true)}>
+														<Video className="h-3.5 w-3.5" />
+													</Button>
+													<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="插入网盘链接" onClick={() => setCloudDialogOpen(true)}>
+														<Cloud className="h-3.5 w-3.5" />
+													</Button>
+													<Button type="button" variant="outline" size="sm" onClick={() => setEditPreviewOpen((v) => !v)}>
+														{editPreviewOpen ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+														<span className="sr-only">{editPreviewOpen ? '关闭预览' : '打开预览'}</span>
+													</Button>
+												</div>
 											</div>
-											<Textarea ref={editContentRef} value={editContent} onChange={(e) => setEditContent(e.target.value)} rows={10} />
+											<Textarea ref={editContentRef} value={editContent} onChange={(e) => setEditContent(e.target.value)} onKeyDown={handleEditKeyDown} rows={10} />
 										</div>
                         {/* upload image when editing */}
                         <div className="space-y-2">
@@ -630,6 +691,42 @@ export function PostPage() {
 								<DialogFooter>
 									<Button variant="outline" onClick={() => setAttachDialogOpen(false)}>取消</Button>
 									<Button onClick={saveAttachmentLink} disabled={!attachLinkUrl || !attachFileName}>保存</Button>
+								</DialogFooter>
+							</DialogContent>
+						</Dialog>
+
+						<Dialog open={videoDialogOpen} onOpenChange={setVideoDialogOpen}>
+							<DialogContent className="sm:max-w-md">
+								<DialogHeader><DialogTitle>插入视频</DialogTitle></DialogHeader>
+								<div className="space-y-4 py-2">
+									<div className="space-y-2">
+										<Label htmlFor="edit-video-url">视频链接</Label>
+										<Input id="edit-video-url" value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)} placeholder="https://... 或 YouTube/B站链接" />
+									</div>
+								</div>
+								<DialogFooter>
+									<Button variant="outline" onClick={() => setVideoDialogOpen(false)}>取消</Button>
+									<Button onClick={insertEditVideo} disabled={!videoUrl.trim()}>插入</Button>
+								</DialogFooter>
+							</DialogContent>
+						</Dialog>
+
+						<Dialog open={cloudDialogOpen} onOpenChange={setCloudDialogOpen}>
+							<DialogContent className="sm:max-w-md">
+								<DialogHeader><DialogTitle>插入网盘链接</DialogTitle></DialogHeader>
+								<div className="space-y-4 py-2">
+									<div className="space-y-2">
+										<Label htmlFor="edit-cloud-url">链接地址</Label>
+										<Input id="edit-cloud-url" value={cloudLinkUrl} onChange={(e) => setCloudLinkUrl(e.target.value)} placeholder="https://..." />
+									</div>
+									<div className="space-y-2">
+										<Label htmlFor="edit-cloud-name">显示名称</Label>
+										<Input id="edit-cloud-name" value={cloudLinkName} onChange={(e) => setCloudLinkName(e.target.value)} placeholder="网盘链接" />
+									</div>
+								</div>
+								<DialogFooter>
+									<Button variant="outline" onClick={() => setCloudDialogOpen(false)}>取消</Button>
+									<Button onClick={insertEditCloudLink} disabled={!cloudLinkUrl.trim()}>插入</Button>
 								</DialogFooter>
 							</DialogContent>
 						</Dialog>
