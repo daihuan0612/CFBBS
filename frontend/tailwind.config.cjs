@@ -1,6 +1,6 @@
 module.exports = {
 	darkMode: ['class'],
-	content: ['./frontend/pages/**/*.html', './frontend/src/**/*.{ts,tsx}'],
+	content: ['./pages/**/*.html', './src/**/*.{ts,tsx}'],
 	theme: {
 		extend: {
 			borderRadius: {
