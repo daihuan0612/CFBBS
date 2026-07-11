@@ -621,10 +621,6 @@ export default {
 					return jsonResponse({ error: 'Username or Password Error' }, 401);
 				}
 
-				if (!user.verified) {
-					return jsonResponse({ error: 'Please verify your email first' }, 403);
-				}
-
 				const passwordHash = await hashPassword(password);
 				if (user.password !== passwordHash) {
 					return jsonResponse({ error: 'Username or Password Error' }, 401);
@@ -1588,34 +1584,10 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 				}
 
 				const passwordHash = await hashPassword(password);
-				const verificationToken = generateToken();
-
-				// Pre-check email deliverability (Send a test email first)
-				// Note: We don't insert user yet. If email fails, we abort.
-				const baseUrl = getBaseUrl();
-				const verifyLink = `${baseUrl}/api/verify?token=${verificationToken}`;
-
-				const emailHtml = `
-					<h1>欢迎加入论坛，${username}！</h1>
-					<p>请点击下方链接验证您的邮箱地址：</p>
-					<a href="${verifyLink}">验证邮箱</a>
-					<p>如果您未请求此操作，请忽略此邮件。</p>
-				`;
-
-				try {
-					await sendEmail(email, '请验证您的邮箱', emailHtml, env);
-				} catch (e) {
-					console.error('[Registration Email Error]', e);
-					const errorMsg = e instanceof Error ? e.message : '未知错误';
-					return jsonResponse({
-						error: `验证邮件发送失败: ${errorMsg}`,
-						details: '请检查邮箱地址或联系管理员检查 SMTP 配置'
-					}, 400);
-				}
 
 				const { success, meta } = await env.cforum_db.prepare(
-					'INSERT INTO users (email, username, password, role, verified, verification_token) VALUES (?, ?, ?, "user", 0, ?)'
-				).bind(email, username, passwordHash, verificationToken).run();
+					'INSERT INTO users (email, username, password, role, verified) VALUES (?, ?, ?, "user", 1)'
+				).bind(email, username, passwordHash).run();
 
 				if (success) {
 					// Generate Default Avatar (Identicon)
