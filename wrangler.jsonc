@@ -70,6 +70,20 @@
 	 * wrangler secret put JWT_SECRET
 	 * Generate a random value with: head -c 32 /dev/urandom | base64
 	 *
+	 * 管理员账号通过环境变量配置（部署后首次初始化生效）：
+	 *   ADMIN_EMAIL     - 管理员邮箱（必填）
+	 *   ADMIN_PASSWORD  - 管理员密码（必填）
+	 *   ADMIN_NICKNAME  - 管理员昵称（可选，默认 Admin）
+	 *
+	 * 设置方式：
+	 *   wrangler secret put JWT_SECRET         # 必需
+	 *   wrangler secret put ADMIN_EMAIL        # 可选，不设置则不创建默认管理员
+	 *   wrangler secret put ADMIN_PASSWORD     # 可选，与 ADMIN_EMAIL 配对
+	 *   wrangler secret put ADMIN_NICKNAME     # 可选
+	 *
+	 * 部署后首次部署会检测 ADMIN_EMAIL/ADMIN_PASSWORD 是否存在，
+	 * 存在则自动创建对应管理员账号；不存在则跳过，需要自行注册。
+	 *
 	 * SMTP 已移除, 密码重置改为管理员生成24h临时密码
 	 */
 	// "vars": {  "MY_VARIABLE": "production_value" }

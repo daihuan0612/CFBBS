@@ -332,9 +332,7 @@ export default {
 			`INSERT OR IGNORE INTO settings (key, value) VALUES ('feature_bookmarks', '1');`,
 			`INSERT OR IGNORE INTO settings (key, value) VALUES ('feature_comments', '1');`,
 			`INSERT OR IGNORE INTO settings (key, value) VALUES ('feature_posts', '1');`,
-			`INSERT OR IGNORE INTO settings (key, value) VALUES ('watermark_enabled', '1');`,
-				`INSERT OR IGNORE INTO users (email, username, password, role, verified, nickname) VALUES
-('admin@adysec.com', 'Admin', 'e86f78a8a3caf0b60d8e74e5942aa6d86dc150cd3c03338aef25b7d2d7e3acc7', 'admin', 1, 'System Admin');`
+			`INSERT OR IGNORE INTO settings (key, value) VALUES ('watermark_enabled', '1');`
 			];
 			for (const stmt of stmts) {
 				try {
@@ -342,6 +340,21 @@ export default {
 				} catch (e) {
 					console.error('Error running schema statement', e, stmt);
 				}
+			}
+			// seed admin from env vars (if configured)
+			const adminEmail = env.ADMIN_EMAIL || '';
+			const adminPassword = env.ADMIN_PASSWORD || '';
+			const adminNickname = env.ADMIN_NICKNAME || '';
+			if (adminEmail && adminPassword) {
+				const adminUser = adminNickname || 'Admin';
+				const encoder = new TextEncoder();
+				const data = encoder.encode(adminPassword);
+				const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+				const hashArray = Array.from(new Uint8Array(hashBuffer));
+				const adminHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+				await env.cforum_db.prepare(
+					`INSERT OR IGNORE INTO users (email, username, password, role, verified, nickname) VALUES (?, ?, ?, 'admin', 1, ?)`
+				).bind(adminEmail, adminUser, adminHash, adminUser).run();
 			}
 			// verify posts table exists now
 			try {

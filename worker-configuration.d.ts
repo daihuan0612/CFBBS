@@ -15,6 +15,9 @@ declare namespace Cloudflare {
 		WORKER_URL?: "https://cforum.adysec.workers.dev" | "http://localhost:8787";
 		BUCKET?: R2Bucket;
 		cforum_db?: D1Database;
+		ADMIN_EMAIL?: string;
+		ADMIN_PASSWORD?: string;
+		ADMIN_NICKNAME?: string;
 	}
 }
 interface Env extends Cloudflare.Env {}

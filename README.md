@@ -83,6 +83,11 @@
 | `BASE_URL` | 推荐 | 站点完整 URL，如 `https://forum.example.com` |
 | `TURNSTILE_SITE_KEY` | 可选 | Cloudflare Turnstile Site Key |
 | `TURNSTILE_SECRET_KEY` | 可选 | Cloudflare Turnstile Secret Key |
+| `ADMIN_EMAIL` | 可选 | 首次部署自动创建管理员（如不设置需自行注册） |
+| `ADMIN_PASSWORD` | 可选 | 管理员密码，与 ADMIN_EMAIL 配对使用 |
+| `ADMIN_NICKNAME` | 可选 | 管理员昵称（默认 `Admin`） |
+
+> 硬编码默认管理员已彻底移除，不再有 `admin@adysec.com / Admin@123`。管理员账号通过环境变量配置，**部署后首次初始化生效**，之后修改环境变量不会重新创建。
 
 #### D1 数据库绑定
 
@@ -161,19 +166,20 @@ npx wrangler pages deploy public --branch production
 | `BASE_URL` | 推荐 | 站点 URL |
 | `TURNSTILE_SITE_KEY` | 可选 | Turnstile Site Key |
 | `TURNSTILE_SECRET_KEY` | 可选 | Turnstile Secret Key |
+| `ADMIN_EMAIL` | 推荐 | 部署后自动创建管理员（如不设置需自行注册） |
+| `ADMIN_PASSWORD` | 推荐 | 管理员密码 |
+| `ADMIN_NICKNAME` | 可选 | 管理员昵称 |
 
 ### 首次初始化
 
-部署完成后：
+**管理员账号由环境变量控制：**
 
-1. 访问站点，使用默认管理员登录：
-   - 邮箱：`admin@adysec.com`
-   - 密码：`Admin@123`
-2. 进入 `/admin` 管理后台：
-   - **生成邀请码** — 开启 `invite_only` 模式后新用户需邀请码注册
-   - **功能开关** — 按需开启/关闭点赞、评论、发帖、收藏、水印等功能
-   - **加密附件** — 开启后用户可在帖子中添加网盘链接
-3. 建议立即修改默认管理员密码
+部署时设置 `ADMIN_EMAIL` + `ADMIN_PASSWORD`，首次部署会自动创建管理员。不设置则不创建，需自行注册（此时建议关闭 `invite_only`）。
+
+部署完成后，访问 `/admin` 管理后台：
+1. **生成邀请码** — 开启 `invite_only` 模式后新用户需邀请码注册
+2. **功能开关** — 按需开启/关闭点赞、评论、发帖、收藏、水印等功能
+3. **加密附件** — 开启后用户可在帖子中添加网盘链接
 
 ---
 
