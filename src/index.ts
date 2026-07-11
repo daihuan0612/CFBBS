@@ -1943,6 +1943,7 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 			} catch (e) {
 				return handleError(e);
 			}
+		}
 
 		// GET /api/posts/:id/like-status
 		if (url.pathname.match(/^\/api\/posts\/\d+\/like-status$/) && method === 'GET') {
