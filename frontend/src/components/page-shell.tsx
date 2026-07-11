@@ -15,6 +15,13 @@ export function PageShell({
 	const [generatedSecret, setGeneratedSecret] = React.useState<string>('');
 	const canvasRef = React.useRef<HTMLCanvasElement>(null);
 
+	// 完全私密模式：未登录强制跳转登录页
+	React.useEffect(() => {
+		if (!user) {
+			window.location.href = '/login';
+		}
+	}, [user]);
+
 	// if jwt not configured, generate a base64-secret for display
 	React.useEffect(() => {
 		if (config && config.jwt_secret_configured === false && !generatedSecret) {

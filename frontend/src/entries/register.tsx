@@ -1,5 +1,5 @@
 import { mount } from '@/entries/bootstrap';
-import { RegisterPage } from '@/pages/register-page';
+import { LoginPage } from '@/pages/login-page';
 
-mount('root', <RegisterPage />);
-
+// 注册已合并到登录页，直接显示同一组件
+mount('root', <LoginPage />);
