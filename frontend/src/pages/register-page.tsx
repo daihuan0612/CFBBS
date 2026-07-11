@@ -50,7 +50,7 @@ export function RegisterPage() {
 				setTurnstileResetKey((v) => v + 1);
 				throw new Error(data?.error || '注册失败');
 			}
-			setSuccess('注册成功！请前往邮箱完成验证后再登录。');
+			setSuccess('注册成功！请登录。');
 			setEmail('');
 			setUsername('');
 			setPassword('');
@@ -77,7 +77,7 @@ export function RegisterPage() {
 							{success ? <div className="rounded-md border bg-muted/40 p-3 text-sm">{success}</div> : null}
 
 							<div className="space-y-2">
-								<Label htmlFor="register-username">用户名 (最多 20 字符)</Label>
+								<Label htmlFor="register-username">昵称 (最多 20 字符)</Label>
 								<Input
 									id="register-username"
 									name="username"
@@ -90,12 +90,12 @@ export function RegisterPage() {
 							</div>
 
 							<div className="space-y-2">
-								<Label htmlFor="register-email">邮箱</Label>
+								<Label htmlFor="register-email">登录用户名</Label>
 								<Input
 									id="register-email"
 									name="email"
-									type="email"
-									autoComplete="email"
+									type="text"
+									autoComplete="username"
 									value={email}
 									onChange={(e) => setEmail(e.target.value)}
 									required

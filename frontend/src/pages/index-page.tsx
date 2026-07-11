@@ -387,12 +387,12 @@ export function IndexPage() {
 	React.useEffect(() => {
 		const params = new URLSearchParams(window.location.search);
 		if (params.get('verified') === 'true') {
-			setBanner('邮箱验证成功，现在可以登录。');
+			setBanner('用户名验证成功，现在可以登录。');
 			params.delete('verified');
 			window.history.replaceState({}, document.title, `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ''}`);
-		} else if (params.get('email_changed') === 'true') {
-			setBanner('邮箱更换成功。');
-			params.delete('email_changed');
+		} else if (params.get('loginName_changed') === 'true') {
+			setBanner('登录用户名更换成功。');
+			params.delete('loginName_changed');
 			window.history.replaceState({}, document.title, `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ''}`);
 		}
 	}, []);

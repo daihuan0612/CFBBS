@@ -503,8 +503,8 @@ export function AdminPage() {
 										<thead className="bg-muted/30 text-left">
 											<tr>
 												<th className="px-3 py-2">ID</th>
-												<th className="px-3 py-2">用户名</th>
-												<th className="px-3 py-2">邮箱</th>
+												<th className="px-3 py-2">昵称</th>
+												<th className="px-3 py-2">登录用户名</th>
 												<th className="px-3 py-2">角色</th>
 												<th className="px-3 py-2">已验证</th>
 												<th className="px-3 py-2">操作</th>
@@ -550,10 +550,10 @@ export function AdminPage() {
 						{/* 编辑用户对话框 */}
 						<Dialog open={editOpen} onOpenChange={setEditOpen}>
 							<DialogContent>
-								<DialogHeader><DialogTitle>编辑用户</DialogTitle><DialogDescription>修改用户名/邮箱/头像/密码</DialogDescription></DialogHeader>
-								<div className="grid gap-4 py-4">
-									<div className="grid gap-2"><Label htmlFor="edit-username">用户名</Label><Input id="edit-username" value={editUsername} onChange={(e) => setEditUsername(e.target.value)} maxLength={20} /></div>
-									<div className="grid gap-2"><Label htmlFor="edit-email">邮箱</Label><Input id="edit-email" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} type="email" /></div>
+								<DialogHeader><DialogTitle>编辑用户</DialogTitle><DialogDescription>修改昵称/用户名/头像/密码</DialogDescription></DialogHeader>
+												<div className="grid gap-4 py-4">
+													<div className="grid gap-2"><Label htmlFor="edit-username">昵称</Label><Input id="edit-username" value={editUsername} onChange={(e) => setEditUsername(e.target.value)} maxLength={20} /></div>
+													<div className="grid gap-2"><Label htmlFor="edit-email">登录用户名</Label><Input id="edit-email" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} /></div>
 									<div className="grid gap-2"><Label htmlFor="edit-avatar">头像 URL</Label><Input id="edit-avatar" value={editAvatarUrl} onChange={(e) => setEditAvatarUrl(e.target.value)} /></div>
 									<div className="grid gap-2"><Label htmlFor="edit-password">新密码 (留空不变)</Label><Input id="edit-password" value={editPassword} onChange={(e) => setEditPassword(e.target.value)} /></div>
 								</div>
