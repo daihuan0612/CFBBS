@@ -2037,6 +2037,45 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 			}
 		}
 
+		// POST /api/posts/:id/comments
+		if (url.pathname.match(/^\/api\/posts\/\d+\/comments$/) && method === 'POST') {
+			const postId = url.pathname.split('/')[3];
+			try {
+				const userPayload = await authenticate(request);
+				const body = await request.json() as any;
+				const { content, parent_id, 'cf-turnstile-response': turnstileToken } = body;
+
+				if (!content || !content.trim()) return jsonResponse({ error: '评论内容不能为空' }, 400);
+				if (content.length > 3000) return jsonResponse({ error: '评论过长 (最多 3000 字符)' }, 400);
+
+				// Verify Turnstile if enabled
+				const config = await loadConfig(env);
+				const ip = request.headers.get('CF-Connecting-IP') || '127.0.0.1';
+				if (config.turnstile_enabled && config.turnstile_site_key) {
+					if (!turnstileToken || !(await checkTurnstile({ 'cf-turnstile-response': turnstileToken }, ip))) {
+						return jsonResponse({ error: '验证码验证失败' }, 403);
+					}
+				}
+
+				const result = await env.cforum_db.prepare(
+					'INSERT INTO comments (post_id, author_id, content, parent_id) VALUES (?, ?, ?, ?)'
+				).bind(postId, userPayload.id, content.trim(), parent_id || null).run();
+
+				// 通知帖子作者有人评论
+				const post = await env.cforum_db.prepare('SELECT author_id, title FROM posts WHERE id = ?').bind(postId).first<{ author_id: number; title: string }>();
+				if (post && post.author_id !== userPayload.id) {
+					const setting = await env.cforum_db.prepare("SELECT value FROM settings WHERE key = 'notify_on_comment'").first<DBSetting>();
+					if (!setting || setting.value !== '0') {
+						await createNotification(post.author_id, 'new_comment', `回复了你的帖子「${post.title}」`, content.trim());
+					}
+				}
+
+				return jsonResponse({ success: true, id: result.meta?.last_row_id });
+			} catch (e) {
+				return handleError(e);
+			}
+		}
+
 		// GET /api/posts/:id/comments
 		if (url.pathname.match(/^\/api\/posts\/\d+\/comments$/) && method === 'GET') {
 			const postId = url.pathname.split('/')[3];
