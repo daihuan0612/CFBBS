@@ -1286,8 +1286,11 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 				const { name } = body;
 				if (!name) return jsonResponse({ error: 'Missing name' }, 400);
 
-				const result = await env.cforum_db.prepare('INSERT OR IGNORE INTO categories (name) VALUES (?)').bind(name).run();
-				if (result.meta.changes === 0) return jsonResponse({ error: '该分类名已存在' }, 409);
+				// Check if name already exists
+				const existing = await env.cforum_db.prepare('SELECT id FROM categories WHERE name = ?').bind(name).first();
+				if (existing) return jsonResponse({ error: '该分类名已存在' }, 409);
+
+				await env.cforum_db.prepare('INSERT INTO categories (name) VALUES (?)').bind(name).run();
 				await security.logAudit(userPayload.id, 'CREATE_CATEGORY', 'category', name, {}, request);
 				return jsonResponse({ success: true });
 			} catch (e) {
