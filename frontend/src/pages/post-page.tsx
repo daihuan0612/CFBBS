@@ -598,7 +598,7 @@ export function PostPage() {
 									</div>
 								) : (
 									<div
-										className="prose max-w-none break-words [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:my-1"
+										className="w-full prose max-w-none break-words [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:my-1"
 										ref={contentRef}
 										dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(post.content || '') }}
 									/>
