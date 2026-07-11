@@ -35,6 +35,12 @@ export function NotificationBell() {
 		} catch { /* ignore */ }
 	}, []);
 
+	// 页面加载时拉一次未读数
+	React.useEffect(() => {
+		if (!getToken()) return;
+		fetchUnread();
+	}, [fetchUnread]);
+
 	const handleToggle = () => {
 		if (!open) {
 			fetchNotifications();
