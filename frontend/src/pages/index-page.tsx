@@ -442,6 +442,21 @@ export function IndexPage() {
 		lastOffsetRef.current = pageOffset;
 	}, [pageOffset, loading]);
 
+	// 当用户从帖子详情页返回首页时，自动刷新数据
+	React.useEffect(() => {
+		let wasHidden = false;
+		const handleVisibility = () => {
+			if (document.visibilityState === 'hidden') {
+				wasHidden = true;
+			} else if (document.visibilityState === 'visible' && wasHidden) {
+				wasHidden = false;
+				fetchPosts(pageOffset);
+			}
+		};
+		document.addEventListener('visibilitychange', handleVisibility);
+		return () => document.removeEventListener('visibilitychange', handleVisibility);
+	}, [fetchPosts, pageOffset]);
+
 	async function adminTogglePin(post: Post) {
 		if (!user || user.role !== 'admin') return;
 		setAdminActionPostId(post.id);
