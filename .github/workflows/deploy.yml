@@ -93,11 +93,11 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
 
-      - name: Upload WORKER_URL (auto from account)
+      - name: Upload WORKER_URL (auto from account - for Pages proxy)
         run: |
           WORKER_URL="https://cfbbs.$CLOUDFLARE_ACCOUNT_ID.workers.dev"
-          npx wrangler secret put WORKER_URL <<< "$WORKER_URL"
-          echo "WORKER_URL set to $WORKER_URL"
+          echo "$WORKER_URL" | npx wrangler pages secret put WORKER_URL --project-name=cfbbs
+          echo "WORKER_URL set to $WORKER_URL for Pages project cfbbs"
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
