@@ -192,10 +192,26 @@ export function IndexPage() {
 		});
 	}
 
-	// 编辑器增强: 视频
+	// 编辑器增强: 视频（自动识别链接类型）
 	function insertVideoMarkdown(url: string) {
-		const embed = `<video controls width="100%"><source src="${url}" type="video/mp4"></video>`;
-		insertIntoContent('\n' + embed + '\n');
+		const trimmed = url.trim();
+		// YouTube
+		const ytMatch = trimmed.match(/(?:youtube\.com\/(?:watch|embed)\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+		if (ytMatch) {
+			const embed = `\n<div class="video-wrapper" style="position:relative;padding-bottom:56.25%;height:0;overflow:hidden;max-width:100%;"><iframe src="https://www.youtube.com/embed/${ytMatch[1]}" style="position:absolute;top:0;left:0;width:100%;height:100%;" frameborder="0" allowfullscreen></iframe></div>\n`;
+			return insertIntoContent(embed);
+		}
+		// Bilibili
+		const bvMatch = trimmed.match(/bilibili\.com\/video\/(BV[a-zA-Z0-9]+)/);
+		if (bvMatch) {
+			const embed = `\n<div class="video-wrapper" style="position:relative;padding-bottom:56.25%;height:0;overflow:hidden;max-width:100%;"><iframe src="https://player.bilibili.com/player.html?bvid=${bvMatch[1]}" style="position:absolute;top:0;left:0;width:100%;height:100%;" frameborder="0" allowfullscreen></iframe></div>\n`;
+			return insertIntoContent(embed);
+		}
+		// 默认：用 <video> 标签（支持 mp4/webm/mov 及任何返回视频内容的代理链接）
+		const ext = trimmed.split('?')[0].split('.').pop()?.toLowerCase();
+		const mime = ext === 'webm' ? 'video/webm' : ext === 'ogg' ? 'video/ogg' : 'video/mp4';
+		const embed = `\n<video controls width="100%"><source src="${trimmed}" type="${mime}"></video>\n`;
+		insertIntoContent(embed);
 	}
 
 	// 编辑器增强: 网盘链接
@@ -824,7 +840,7 @@ export function IndexPage() {
 						<DialogHeader><DialogTitle>插入视频</DialogTitle></DialogHeader>
 						<div className="space-y-4 py-2">
 							<div className="space-y-2">
-								<Label htmlFor="video-url">视频 URL（mp4/YouTube/B站等链接）</Label>
+								<Label htmlFor="video-url">视频链接（自动识别 mp4/代理/YouTube/B站）</Label>
 								<Input id="video-url" value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)} placeholder="https://example.com/video.mp4" />
 							</div>
 						</div>
