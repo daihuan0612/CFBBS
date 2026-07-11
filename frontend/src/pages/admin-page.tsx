@@ -16,7 +16,10 @@ export function AdminPage() {
 	const user = React.useMemo(() => getUser(), [token]);
 	const isAdmin = user?.role === 'admin';
 	const [error, setError] = React.useState('');
-	const [saving, setSaving] = React.useState(false);
+	const [savingSettings, setSavingSettings] = React.useState(false);
+	const [categorySaving, setCategorySaving] = React.useState(false);
+	const [userSaving, setUserSaving] = React.useState(false);
+	const [inviteSaving, setInviteSaving] = React.useState(false);
 	const [refreshing, setRefreshing] = React.useState(false);
 	const [purging, setPurging] = React.useState(false);
 
@@ -123,7 +126,7 @@ export function AdminPage() {
 
 	async function saveSettings() {
 		if (!isAdmin) return;
-		setSaving(true);
+		setSavingSettings(true);
 		setError('');
 		try {
 			await apiFetch('/admin/settings', {
@@ -135,13 +138,13 @@ export function AdminPage() {
 		} catch (e: any) {
 			setError(String(e?.message || e));
 		} finally {
-			setSaving(false);
+			setSavingSettings(false);
 		}
 	}
 
 	async function createCategory() {
 		if (!isAdmin || !newCategoryName) return;
-		setSaving(true);
+		setCategorySaving(true);
 		setError('');
 		try {
 			await apiFetch('/admin/categories', {
@@ -149,12 +152,12 @@ export function AdminPage() {
 			});
 			setNewCategoryName('');
 			await refresh();
-		} catch (e: any) { setError(String(e?.message || e)); } finally { setSaving(false); }
+		} catch (e: any) { setError(String(e?.message || e)); } finally { setCategorySaving(false); }
 	}
 
 	async function updateCategory(id: number) {
 		if (!isAdmin || !editingCategoryName) return;
-		setSaving(true);
+		setCategorySaving(true);
 		setError('');
 		try {
 			await apiFetch(`/admin/categories/${id}`, {
@@ -163,16 +166,16 @@ export function AdminPage() {
 			setEditingCategoryId(null);
 			setEditingCategoryName('');
 			await refresh();
-		} catch (e: any) { setError(String(e?.message || e)); } finally { setSaving(false); }
+		} catch (e: any) { setError(String(e?.message || e)); } finally { setCategorySaving(false); }
 	}
 
 	async function deleteCategory(id: number) {
 		if (!confirm('确定删除此分类？')) return;
-		setSaving(true);
+		setCategorySaving(true);
 		try {
 			await apiFetch(`/admin/categories/${id}`, { method: 'DELETE', headers: getSecurityHeaders('DELETE') });
 			await refresh();
-		} catch (e: any) { setError(String(e?.message || e)); } finally { setSaving(false); }
+		} catch (e: any) { setError(String(e?.message || e)); } finally { setCategorySaving(false); }
 	}
 
 	function openEdit(u: any) {
@@ -186,7 +189,7 @@ export function AdminPage() {
 
 	async function saveEdit() {
 		if (!editUserId) return;
-		setSaving(true);
+		setUserSaving(true);
 		setError('');
 		try {
 			await apiFetch(`/admin/users/${editUserId}/update`, {
@@ -195,30 +198,30 @@ export function AdminPage() {
 			});
 			setEditOpen(false);
 			await refresh();
-		} catch (e: any) { setError(String(e?.message || e)); } finally { setSaving(false); }
+		} catch (e: any) { setError(String(e?.message || e)); } finally { setUserSaving(false); }
 	}
 
 	async function deleteUser(id: number) {
 		if (!confirm('确定删除此用户？')) return;
-		setSaving(true);
+		setUserSaving(true);
 		try {
 			await apiFetch(`/admin/users/${id}`, { method: 'DELETE', headers: getSecurityHeaders('DELETE') });
 			await refresh();
-		} catch (e: any) { setError(String(e?.message || e)); } finally { setSaving(false); }
+		} catch (e: any) { setError(String(e?.message || e)); } finally { setUserSaving(false); }
 	}
 
 	async function manualVerify(id: number) {
 		if (!confirm('确认手动验证此用户？')) return;
-		setSaving(true);
+		setUserSaving(true);
 		try {
 			await apiFetch(`/admin/users/${id}/verify`, { method: 'POST', headers: getSecurityHeaders('POST'), body: JSON.stringify({}) });
 			await refresh();
-		} catch (e: any) { setError(String(e?.message || e)); } finally { setSaving(false); }
+		} catch (e: any) { setError(String(e?.message || e)); } finally { setUserSaving(false); }
 	}
 
 	// 生成邀请码
 	async function generateInvites() {
-		setSaving(true);
+		setInviteSaving(true);
 		setError('');
 		setGeneratedCodes([]);
 		try {
@@ -228,7 +231,7 @@ export function AdminPage() {
 			});
 			setGeneratedCodes(data.codes);
 			await loadInvitations();
-		} catch (e: any) { setError(String(e?.message || e)); } finally { setSaving(false); }
+		} catch (e: any) { setError(String(e?.message || e)); } finally { setInviteSaving(false); }
 	}
 
 	// 停用邀请码
@@ -404,7 +407,7 @@ export function AdminPage() {
 										手动验证通过时通知用户
 									</label>
 								</div>
-								<Button onClick={saveSettings} disabled={saving}>{saving ? '保存中...' : '保存设置'}</Button>
+								<Button onClick={saveSettings} disabled={savingSettings}>{savingSettings ? '保存中...' : '保存设置'}</Button>
 							</CardContent>
 						</Card>
 
@@ -424,7 +427,7 @@ export function AdminPage() {
 										<Label>有效时长（小时）</Label>
 										<Input type="number" min={1} value={inviteHours} onChange={(e) => setInviteHours(parseInt(e.target.value) || 72)} className="w-24" />
 									</div>
-									<Button onClick={generateInvites} disabled={saving}>
+									<Button onClick={generateInvites} disabled={inviteSaving}>
 										<Key className="h-4 w-4" />
 										生成邀请码
 									</Button>
@@ -468,7 +471,7 @@ export function AdminPage() {
 										<Label htmlFor="cat-name">分类名称</Label>
 										<Input id="cat-name" value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} />
 									</div>
-									<Button onClick={createCategory} disabled={saving}>添加</Button>
+									<Button onClick={createCategory} disabled={categorySaving}>添加</Button>
 								</div>
 								<div className="space-y-2">
 									{categories.map((c) => (
@@ -557,7 +560,7 @@ export function AdminPage() {
 									<div className="grid gap-2"><Label htmlFor="edit-avatar">头像 URL</Label><Input id="edit-avatar" value={editAvatarUrl} onChange={(e) => setEditAvatarUrl(e.target.value)} /></div>
 									<div className="grid gap-2"><Label htmlFor="edit-password">新密码 (留空不变)</Label><Input id="edit-password" value={editPassword} onChange={(e) => setEditPassword(e.target.value)} /></div>
 								</div>
-								<DialogFooter><Button variant="outline" onClick={() => setEditOpen(false)}>取消</Button><Button onClick={saveEdit} disabled={saving}>{saving ? '保存中...' : '保存'}</Button></DialogFooter>
+								<DialogFooter><Button variant="outline" onClick={() => setEditOpen(false)}>取消</Button><Button onClick={saveEdit} disabled={userSaving}>{userSaving ? '保存中...' : '保存'}</Button></DialogFooter>
 							</DialogContent>
 						</Dialog>
 

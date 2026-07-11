@@ -2,6 +2,7 @@ import * as React from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
+import { NotificationBell } from '@/components/notification-bell';
 import { getUser, logout, type User } from '@/lib/auth';
 import { getTheme, toggleTheme, type Theme } from '@/lib/theme';
 import { Home, LogIn, LogOut, Moon, Settings, Shield, Sun, User as UserIcon, UserPlus } from 'lucide-react';
@@ -42,6 +43,7 @@ export function SiteHeader({
 					</Button>
 					{user ? (
 						<>
+							<NotificationBell />
 							<span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
 								{user.avatar_url ? (
 									<img

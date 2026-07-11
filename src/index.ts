@@ -327,6 +327,20 @@ export default {
   watermark_data TEXT NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );`,
+			`CREATE TABLE IF NOT EXISTS notifications (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  type TEXT NOT NULL,
+  title TEXT NOT NULL,
+  message TEXT NOT NULL,
+  actor_id INTEGER,
+  is_read INTEGER DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id),
+  FOREIGN KEY (actor_id) REFERENCES users(id)
+);`,
+			`CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id);`,
+			`CREATE INDEX IF NOT EXISTS idx_notifications_unread ON notifications(user_id, is_read);`,
 			`CREATE INDEX IF NOT EXISTS idx_invitation_codes_code ON invitation_codes(code);`,
 			`CREATE INDEX IF NOT EXISTS idx_invitation_codes_active ON invitation_codes(is_active);`,
 			`CREATE INDEX IF NOT EXISTS idx_password_history_user ON password_history(user_id);`,
@@ -341,7 +355,11 @@ export default {
 			`INSERT OR IGNORE INTO settings (key, value) VALUES ('feature_bookmarks', '1');`,
 			`INSERT OR IGNORE INTO settings (key, value) VALUES ('feature_comments', '1');`,
 			`INSERT OR IGNORE INTO settings (key, value) VALUES ('feature_posts', '1');`,
-			`INSERT OR IGNORE INTO settings (key, value) VALUES ('watermark_enabled', '1');`
+			`INSERT OR IGNORE INTO settings (key, value) VALUES ('watermark_enabled', '1');`,
+			`INSERT OR IGNORE INTO settings (key, value) VALUES ('notify_on_user_delete', '1');`,
+			`INSERT OR IGNORE INTO settings (key, value) VALUES ('notify_on_username_change', '1');`,
+			`INSERT OR IGNORE INTO settings (key, value) VALUES ('notify_on_avatar_change', '1');`,
+			`INSERT OR IGNORE INTO settings (key, value) VALUES ('notify_on_manual_verify', '1');`
 			];
 			for (const stmt of stmts) {
 				try {
@@ -423,6 +441,17 @@ export default {
 				return jsonResponse({ error: 'Unauthorized' }, 401);
 			}
 			return jsonResponse({ error: errString }, 500);
+		};
+
+		// Helper: create in-site notification
+		const createNotification = async (userId: number, type: string, title: string, message: string, actorId?: number) => {
+			try {
+				await env.cforum_db.prepare(
+					'INSERT INTO notifications (user_id, type, title, message, actor_id) VALUES (?, ?, ?, ?, ?)'
+				).bind(userId, type, title, message, actorId || null).run();
+			} catch (e) {
+				console.error('Failed to create notification', e);
+			}
 		};
 
 		// 插件: 前置速率限制
@@ -749,6 +778,21 @@ export default {
 
 				await env.cforum_db.prepare('UPDATE users SET username = ?, avatar_url = ?, email_notifications = ? WHERE id = ?')
 					.bind(newUsername, newAvatarUrl, newEmailNotif, user_id).run();
+
+				// Notifications for profile changes
+				if (username !== undefined && username !== currentUser.username) {
+					const setting = await env.cforum_db.prepare("SELECT value FROM settings WHERE key = 'notify_on_username_change'").first<DBSetting>();
+					if (setting && setting.value === '1') {
+						createNotification(userPayload.id, 'username_changed', '用户名已修改', `您的用户名已从 "${currentUser.username}" 修改为 "${username}"。`);
+					}
+				}
+
+				if (avatar_url !== undefined && avatar_url !== currentUser.avatar_url) {
+					const setting = await env.cforum_db.prepare("SELECT value FROM settings WHERE key = 'notify_on_avatar_change'").first<DBSetting>();
+					if (setting && setting.value === '1') {
+						createNotification(userPayload.id, 'avatar_changed', '头像已修改', '您的头像已成功更新。');
+					}
+				}
 
 			const user = await env.cforum_db.prepare('SELECT * FROM users WHERE id = ?').bind(user_id).first<DBUser>();
 			if (!user) return jsonResponse({ error: 'User not found' }, 404);
@@ -1176,6 +1220,62 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 			}
 		}
 
+		// --- NOTIFICATION ROUTES ---
+
+		// GET /api/notifications
+		if (url.pathname === '/api/notifications' && method === 'GET') {
+			try {
+				const userPayload = await authenticate(request);
+				const limit = parseInt(url.searchParams.get('limit') || '20');
+				const { results } = await env.cforum_db.prepare(
+					'SELECT id, type, title, message, actor_id, is_read, created_at FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT ?'
+				).bind(userPayload.id, limit).all();
+				return jsonResponse(results);
+			} catch (e) {
+				return handleError(e);
+			}
+		}
+
+		// GET /api/notifications/unread-count
+		if (url.pathname === '/api/notifications/unread-count' && method === 'GET') {
+			try {
+				const userPayload = await authenticate(request);
+				const row = await env.cforum_db.prepare(
+					'SELECT COUNT(*) as count FROM notifications WHERE user_id = ? AND is_read = 0'
+				).bind(userPayload.id).first<{count: number}>();
+				return jsonResponse({ count: row?.count || 0 });
+			} catch (e) {
+				return handleError(e);
+			}
+		}
+
+		// POST /api/notifications/read/:id
+		if (url.pathname.match(/^\/api\/notifications\/read\/\d+$/) && method === 'POST') {
+			try {
+				const userPayload = await authenticate(request);
+				const id = url.pathname.split('/')[4];
+				await env.cforum_db.prepare(
+					'UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?'
+				).bind(id, userPayload.id).run();
+				return jsonResponse({ success: true });
+			} catch (e) {
+				return handleError(e);
+			}
+		}
+
+		// POST /api/notifications/read-all
+		if (url.pathname === '/api/notifications/read-all' && method === 'POST') {
+			try {
+				const userPayload = await authenticate(request);
+				await env.cforum_db.prepare(
+					'UPDATE notifications SET is_read = 1 WHERE user_id = ? AND is_read = 0'
+				).bind(userPayload.id).run();
+				return jsonResponse({ success: true });
+			} catch (e) {
+				return handleError(e);
+			}
+		}
+
 		// POST /api/admin/categories
 		if (url.pathname === '/api/admin/categories' && method === 'POST') {
 			try {
@@ -1291,12 +1391,8 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 				if (setting && setting.value === '1') {
 					const user = await env.cforum_db.prepare('SELECT email, username FROM users WHERE id = ?').bind(id).first<{email:string;username:string}>();
 					if (!user) throw new Error('User unexpectedly missing');
-					const emailHtml = `
-						<h1>账户已验证</h1>
-						<p>您的账户 (用户名: <strong>${user.username}</strong>) 已通过管理员手动验证。</p>
-						<p>您现在可以登录并使用所有功能。</p>
-					`;
-					ctx.waitUntil(sendEmail(user.email as string, '您的账户已通过验证', emailHtml, env).catch(console.error));
+					// Send notification to the verified user
+					createNotification(parseInt(id), 'manual_verified', '账户已验证', `您的账户（${user.username}）已通过管理员手动验证。`, userPayload.id);
 				}
 
 				return jsonResponse({ success });
@@ -1387,17 +1483,17 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 
 				await security.logAudit(userPayload.id, 'ADMIN_DELETE_USER', 'user', String(id), {}, request);
 
-				// Notification
-				if (userToDelete) {
-					const setting = await env.cforum_db.prepare("SELECT value FROM settings WHERE key = 'notify_on_user_delete'").first();
-					if (setting && setting.value === '1') {
-						const emailHtml = `
-							<h1>账户已删除</h1>
-							<p>您的账户 (用户名: <strong>${userToDelete.username}</strong>) 已被管理员删除。</p>
-							<p>如果您认为这是误操作，请联系管理员。</p>
-						`;
-						ctx.waitUntil(sendEmail(userToDelete.email as string, '您的账户已被删除', emailHtml, env).catch(console.error));
+				// Notify admins about account deletion
+				const setting = await env.cforum_db.prepare("SELECT value FROM settings WHERE key = 'notify_on_user_delete'").first<DBSetting>();
+				if (setting && setting.value === '1') {
+					const email = userToDelete?.email || '';
+					const username = userToDelete?.username || '';
+					const admins = await env.cforum_db.prepare("SELECT id FROM users WHERE role = 'admin' AND id != ?").bind(userPayload.id).all<{id:number}>();
+					for (const admin of admins.results) {
+						createNotification(admin.id, 'account_deleted', '用户已删除', `用户 ${email || username}（ID: ${id}）已被管理员删除。`, userPayload.id);
 					}
+					// Also notify the acting admin as confirmation
+					createNotification(userPayload.id, 'account_deleted', '用户已删除', `您已成功删除用户 ${email || username}（ID: ${id}）。`, userPayload.id);
 				}
 
 				return jsonResponse({ success: true });
