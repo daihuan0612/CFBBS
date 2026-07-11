@@ -46,7 +46,7 @@ renderer.image = (({ href, title, text }: { href: string; title?: string | null;
 	if (!src) return '';
 	return `<a href="${src}" data-fancybox="gallery"${captionAttr}><img src="${src}" alt="${alt}" loading="lazy" referrerpolicy="no-referrer" /></a>`;
 }) as any;
-marked.use({ renderer });
+marked.use({ renderer, breaks: true, gfm: true });
 
 export function renderMarkdownToHtml(markdown: string) {
 	const windowLike = window as unknown as Window;

@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Eye, EyeOff, Heart, MessageCircle, MoreVertical, Pin, RefreshCw, Search, Shield, Trash2, User, X, AlignCenter, Indent, Video, Cloud } from 'lucide-react';
+import { Bold, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Eye, EyeOff, Italic, Heart, MessageCircle, MoreVertical, Pin, Quote, RefreshCw, Search, Shield, Trash2, User, X, AlignCenter, Indent, Video, Cloud } from 'lucide-react';
 
 import { TurnstileWidget } from '@/components/turnstile';
 import { PageShell } from '@/components/page-shell';
@@ -189,6 +189,45 @@ export function IndexPage() {
 			const indented = selected.split('\n').map(l => l ? '  ' + l : l).join('\n');
 			const next = text.slice(0, start) + indented + text.slice(end);
 			return { text: next, selectionStart: start, selectionEnd: start + indented.length };
+		});
+	}
+
+	// 编辑器增强: 加粗
+	function insertBold() { wrapSelection('**', '**', '加粗文字'); }
+	// 编辑器增强: 斜体
+	function insertItalic() { wrapSelection('*', '*', '斜体文字'); }
+	// 编辑器增强: 引用
+	function insertQuote() {
+		transformLines((line) => `> ${line}`);
+	}
+
+	// 编辑器增强: 首行缩进（中文全角空格）
+	function formatParagraphIndent() {
+		transformLines((line) => {
+			if (!line.trim()) return line;
+			if (line.startsWith('\u3000\u3000')) return line.replace(/^\u3000\u3000/, '');
+			return `\u3000\u3000${line}`;
+		});
+	}
+
+	// 编辑器增强: 小说格式化（识别章标题 + 批量缩进）
+	function formatNovel() {
+		applyEdit((text, start, end) => {
+			const selected = text.slice(start, end) || text;
+			const lines = selected.split('\n');
+			const formatted = lines.map(line => {
+				// 识别章/节标题: 第X章、Chapter X、# 开头、回车后紧跟的短标题
+				const trimmed = line.trim();
+				if (/^(第[一二三四五六七八九十百千万\d]+[章节回部]|Chapter\s*\d+|#[#\s]|引子|楔子|序|尾声|后记)/.test(trimmed)) {
+					return `\n**${trimmed}**\n`;
+				}
+				// 空行保留
+				if (!trimmed) return '';
+				// 正文自动缩进
+				return `\u3000\u3000${trimmed}`;
+			}).join('\n');
+			const next = text.slice(0, start) + formatted + text.slice(end);
+			return { text: next, selectionStart: start, selectionEnd: start + formatted.length };
 		});
 	}
 
@@ -442,15 +481,20 @@ export function IndexPage() {
 		lastOffsetRef.current = pageOffset;
 	}, [pageOffset, loading]);
 
-	// 当用户从帖子详情页返回首页时，自动刷新数据
+	// 当用户从帖子详情页返回首页时，自动刷新数据（30秒内不重复请求）
 	React.useEffect(() => {
+		let lastFetch = 0;
 		let wasHidden = false;
 		const handleVisibility = () => {
 			if (document.visibilityState === 'hidden') {
 				wasHidden = true;
 			} else if (document.visibilityState === 'visible' && wasHidden) {
 				wasHidden = false;
-				fetchPosts(pageOffset);
+				const now = Date.now();
+				if (now - lastFetch > 30000) {
+					lastFetch = now;
+					fetchPosts(pageOffset);
+				}
 			}
 		};
 		document.addEventListener('visibilitychange', handleVisibility);
@@ -715,17 +759,37 @@ export function IndexPage() {
 								<div className="space-y-2">
 								<div className="flex flex-wrap items-center justify-between gap-2">
 									<Label htmlFor="new-content">内容 (支持 Markdown)</Label>
-									<div className="flex items-center gap-2">
-										<span className="text-xs text-muted-foreground">快捷键：Ctrl+1/2/3、Ctrl+B/I/U、Ctrl+K、Ctrl+Shift+K</span>
-										{/* 编辑器增强: 居中 */}
+									<div className="flex flex-wrap items-center gap-1">
+										<span className="text-xs text-muted-foreground mr-1">快捷键：Ctrl+B/I/K</span>
+										{/* 加粗 */}
+										<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="加粗 Ctrl+B" onClick={insertBold}>
+											<Bold className="h-3.5 w-3.5" />
+										</Button>
+										{/* 斜体 */}
+										<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="斜体 Ctrl+I" onClick={insertItalic}>
+											<Italic className="h-3.5 w-3.5" />
+										</Button>
+										{/* 引用 */}
+										<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="引用" onClick={insertQuote}>
+											<Quote className="h-3.5 w-3.5" />
+										</Button>
+										{/* 居中 */}
 										<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="居中" onClick={insertCenter}>
 											<AlignCenter className="h-3.5 w-3.5" />
 										</Button>
-										{/* 编辑器增强: 缩进 */}
+										{/* 缩进 */}
 										<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="增加缩进" onClick={insertIndent}>
 											<Indent className="h-3.5 w-3.5" />
 										</Button>
-										{/* 编辑器增强: 视频 */}
+										{/* 首行缩进 */}
+										<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="首行缩进（全角空格）" onClick={formatParagraphIndent}>
+											<svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12H9"/><path d="M21 6H3"/><path d="M21 18H3"/><polyline points="7 8 3 12 7 16"/></svg>
+										</Button>
+										{/* 小说格式化 */}
+										<Button type="button" variant="ghost" size="sm" className="h-7 px-1.5" title="小说格式化（章标题+首行缩进）" onClick={formatNovel}>
+											<span className="text-[10px] font-medium">Aa</span>
+										</Button>
+										{/* 视频 */}
 										<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="插入视频" onClick={() => setVideoDialogOpen(true)}>
 											<Video className="h-3.5 w-3.5" />
 										</Button>

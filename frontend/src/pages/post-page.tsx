@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { AlignCenter, ArrowLeft, Cloud, Eye, EyeOff, Heart, Indent, Lock, ExternalLink, MoreVertical, Pin, Pencil, Reply, Shield, Trash2, User, Video, X } from 'lucide-react';
+import { AlignCenter, ArrowLeft, Bold, Cloud, Eye, EyeOff, Heart, Indent, Italic, Lock, ExternalLink, MoreVertical, Pin, Pencil, Quote, Reply, Shield, Trash2, User, Video, X } from 'lucide-react';
 
 import { TurnstileWidget } from '@/components/turnstile';
 import { PageShell } from '@/components/page-shell';
@@ -578,7 +578,16 @@ export function PostPage() {
 										<div className="space-y-2">
 											<div className="flex flex-wrap items-center justify-between gap-2">
 												<Label>内容 (支持 Markdown)</Label>
-												<div className="flex items-center gap-2">
+												<div className="flex flex-wrap items-center gap-1">
+													<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="加粗" onClick={() => insertIntoEditContent('****')}>
+														<Bold className="h-3.5 w-3.5" />
+													</Button>
+													<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="斜体" onClick={() => insertIntoEditContent('**')}>
+														<Italic className="h-3.5 w-3.5" />
+													</Button>
+													<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="引用" onClick={() => insertIntoEditContent('\n> ')}>
+														<Quote className="h-3.5 w-3.5" />
+													</Button>
 													<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="居中" onClick={insertEditCenter}>
 														<AlignCenter className="h-3.5 w-3.5" />
 													</Button>
