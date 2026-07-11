@@ -84,7 +84,7 @@ export function SettingsPage() {
 
 		setLoading(true);
 		try {
-			const res = await fetch('/api/upload', {
+			const res = await fetch(`${API_BASE}/upload`, {
 				method: 'POST',
 				headers: getSecurityHeaders('POST', null),
 				body: formData

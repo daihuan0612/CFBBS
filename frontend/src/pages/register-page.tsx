@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useConfig } from '@/hooks/use-config';
-import { getSecurityHeaders } from '@/lib/api';
+import { getSecurityHeaders, API_BASE } from '@/lib/api';
 
 export function RegisterPage() {
 	const { config } = useConfig();
@@ -39,7 +39,7 @@ export function RegisterPage() {
 			const body: any = { email, username, password, 'cf-turnstile-response': turnstileToken };
 			if (inviteOnly) body.invitation_code = invitationCode;
 
-			const res = await fetch('/api/register', {
+			const res = await fetch(`${API_BASE}/register`, {
 				method: 'POST',
 				headers: getSecurityHeaders('POST'),
 				body: JSON.stringify(body)

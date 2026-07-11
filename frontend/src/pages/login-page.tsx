@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useConfig } from '@/hooks/use-config';
-import { getSecurityHeaders } from '@/lib/api';
+import { getSecurityHeaders, API_BASE } from '@/lib/api';
 import { setToken, setUser } from '@/lib/auth';
 
 export function LoginPage() {
@@ -47,7 +47,7 @@ export function LoginPage() {
 		}
 		setLoading(true);
 		try {
-			const res = await fetch('/api/login', {
+			const res = await fetch(`${API_BASE}/login`, {
 				method: 'POST',
 				headers: getSecurityHeaders('POST'),
 				body: JSON.stringify({
@@ -92,7 +92,7 @@ export function LoginPage() {
 			const body: any = { email: regLoginName, username: regUsername, password: regPassword, 'cf-turnstile-response': regTurnstileToken };
 			if (inviteOnly) body.invitation_code = invitationCode;
 
-			const res = await fetch('/api/register', {
+			const res = await fetch(`${API_BASE}/register`, {
 				method: 'POST',
 				headers: getSecurityHeaders('POST'),
 				body: JSON.stringify(body)

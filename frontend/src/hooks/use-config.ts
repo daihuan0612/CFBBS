@@ -1,6 +1,7 @@
 import * as React from 'react';
 
 import type { ForumConfig } from '@/lib/api';
+import { API_BASE } from '@/lib/api';
 
 export function useConfig() {
 	const [config, setConfig] = React.useState<ForumConfig | null>(null);
@@ -10,7 +11,7 @@ export function useConfig() {
 		let cancelled = false;
 		(async () => {
 			try {
-				const res = await fetch('/api/config');
+				const res = await fetch(`${API_BASE}/config`);
 				if (!res.ok) throw new Error('无法加载站点配置');
 				const data = (await res.json()) as ForumConfig;
 				if (!cancelled) setConfig(data);

@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { useConfig } from '@/hooks/use-config';
-import { apiFetch, formatDate, getSecurityHeaders, type Category, type Comment, type Post } from '@/lib/api';
+import { apiFetch, API_BASE, formatDate, getSecurityHeaders, type Category, type Comment, type Post } from '@/lib/api';
 import { getToken, getUser } from '@/lib/auth';
 import { attachFancybox, highlightCodeBlocks, renderMarkdownToHtml } from '@/lib/markdown';
 import { validateText } from '@/lib/validators';
@@ -558,7 +558,7 @@ export function PostPage() {
                                         const formData = new FormData();
                                         formData.append('file', file);
                                         formData.append('type', 'post');
-                                        const res = await fetch('/api/upload', {
+                                        const res = await fetch(`${API_BASE}/upload`, {
                                             method: 'POST',
                                             headers: getSecurityHeaders('POST', null),
                                             body: formData,
