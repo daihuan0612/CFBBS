@@ -16,7 +16,9 @@ export function AdminPage() {
 	const user = React.useMemo(() => getUser(), [token]);
 	const isAdmin = user?.role === 'admin';
 	const [error, setError] = React.useState('');
-	const [loading, setLoading] = React.useState(false);
+	const [saving, setSaving] = React.useState(false);
+	const [refreshing, setRefreshing] = React.useState(false);
+	const [purging, setPurging] = React.useState(false);
 
 	const [stats, setStats] = React.useState<{ users: number; posts: number; comments: number } | null>(null);
 	const [users, setUsers] = React.useState<
@@ -75,7 +77,7 @@ export function AdminPage() {
 
 	const refresh = React.useCallback(async () => {
 		if (!isAdmin) return;
-		setLoading(true);
+		setRefreshing(true);
 		setError('');
 		try {
 			const [s, u, c, settings] = await Promise.all([
@@ -105,7 +107,7 @@ export function AdminPage() {
 		} catch (e: any) {
 			setError(String(e?.message || e));
 		} finally {
-			setLoading(false);
+			setRefreshing(false);
 		}
 	}, [isAdmin]);
 
@@ -121,7 +123,7 @@ export function AdminPage() {
 
 	async function saveSettings() {
 		if (!isAdmin) return;
-		setLoading(true);
+		setSaving(true);
 		setError('');
 		try {
 			await apiFetch('/admin/settings', {
@@ -133,13 +135,13 @@ export function AdminPage() {
 		} catch (e: any) {
 			setError(String(e?.message || e));
 		} finally {
-			setLoading(false);
+			setSaving(false);
 		}
 	}
 
 	async function createCategory() {
 		if (!isAdmin || !newCategoryName) return;
-		setLoading(true);
+		setSaving(true);
 		setError('');
 		try {
 			await apiFetch('/admin/categories', {
@@ -147,12 +149,12 @@ export function AdminPage() {
 			});
 			setNewCategoryName('');
 			await refresh();
-		} catch (e: any) { setError(String(e?.message || e)); } finally { setLoading(false); }
+		} catch (e: any) { setError(String(e?.message || e)); } finally { setSaving(false); }
 	}
 
 	async function updateCategory(id: number) {
 		if (!isAdmin || !editingCategoryName) return;
-		setLoading(true);
+		setSaving(true);
 		setError('');
 		try {
 			await apiFetch(`/admin/categories/${id}`, {
@@ -161,16 +163,16 @@ export function AdminPage() {
 			setEditingCategoryId(null);
 			setEditingCategoryName('');
 			await refresh();
-		} catch (e: any) { setError(String(e?.message || e)); } finally { setLoading(false); }
+		} catch (e: any) { setError(String(e?.message || e)); } finally { setSaving(false); }
 	}
 
 	async function deleteCategory(id: number) {
 		if (!confirm('确定删除此分类？')) return;
-		setLoading(true);
+		setSaving(true);
 		try {
 			await apiFetch(`/admin/categories/${id}`, { method: 'DELETE', headers: getSecurityHeaders('DELETE') });
 			await refresh();
-		} catch (e: any) { setError(String(e?.message || e)); } finally { setLoading(false); }
+		} catch (e: any) { setError(String(e?.message || e)); } finally { setSaving(false); }
 	}
 
 	function openEdit(u: any) {
@@ -184,7 +186,7 @@ export function AdminPage() {
 
 	async function saveEdit() {
 		if (!editUserId) return;
-		setLoading(true);
+		setSaving(true);
 		setError('');
 		try {
 			await apiFetch(`/admin/users/${editUserId}/update`, {
@@ -193,30 +195,30 @@ export function AdminPage() {
 			});
 			setEditOpen(false);
 			await refresh();
-		} catch (e: any) { setError(String(e?.message || e)); } finally { setLoading(false); }
+		} catch (e: any) { setError(String(e?.message || e)); } finally { setSaving(false); }
 	}
 
 	async function deleteUser(id: number) {
 		if (!confirm('确定删除此用户？')) return;
-		setLoading(true);
+		setSaving(true);
 		try {
 			await apiFetch(`/admin/users/${id}`, { method: 'DELETE', headers: getSecurityHeaders('DELETE') });
 			await refresh();
-		} catch (e: any) { setError(String(e?.message || e)); } finally { setLoading(false); }
+		} catch (e: any) { setError(String(e?.message || e)); } finally { setSaving(false); }
 	}
 
 	async function manualVerify(id: number) {
 		if (!confirm('确认手动验证此用户？')) return;
-		setLoading(true);
+		setSaving(true);
 		try {
 			await apiFetch(`/admin/users/${id}/verify`, { method: 'POST', headers: getSecurityHeaders('POST'), body: JSON.stringify({}) });
 			await refresh();
-		} catch (e: any) { setError(String(e?.message || e)); } finally { setLoading(false); }
+		} catch (e: any) { setError(String(e?.message || e)); } finally { setSaving(false); }
 	}
 
 	// 生成邀请码
 	async function generateInvites() {
-		setLoading(true);
+		setSaving(true);
 		setError('');
 		setGeneratedCodes([]);
 		try {
@@ -226,7 +228,7 @@ export function AdminPage() {
 			});
 			setGeneratedCodes(data.codes);
 			await loadInvitations();
-		} catch (e: any) { setError(String(e?.message || e)); } finally { setLoading(false); }
+		} catch (e: any) { setError(String(e?.message || e)); } finally { setSaving(false); }
 	}
 
 	// 停用邀请码
@@ -277,12 +279,12 @@ export function AdminPage() {
 	// 清除缓存
 	async function purgeCache() {
 		if (!confirm('⚠️ 确定要清除全站缓存吗？这将使所有用户重新加载最新数据。')) return;
-		setLoading(true);
+		setPurging(true);
 		try {
 			await apiFetch('/admin/cache/purge', { method: 'POST', headers: getSecurityHeaders('POST'), body: JSON.stringify({}) });
 			setCacheResult('✅ 缓存清除指令已发出！');
 			setTimeout(() => setCacheResult(''), 3000);
-		} catch (e: any) { setError(String(e?.message || e)); } finally { setLoading(false); }
+		} catch (e: any) { setError(String(e?.message || e)); } finally { setPurging(false); }
 	}
 
 	return (
@@ -294,11 +296,11 @@ export function AdminPage() {
 						<p className="text-sm text-muted-foreground">站点设置、分类与用户管理</p>
 					</div>
 					<div className="flex items-center gap-2">
-						<Button variant="destructive" size="sm" onClick={purgeCache} disabled={loading}>
+						<Button variant="destructive" size="sm" onClick={purgeCache} disabled={purging}>
 							<AlertTriangle className="h-4 w-4" />
 							清除缓存
 						</Button>
-						<Button variant="outline" onClick={refresh} disabled={loading}>
+						<Button variant="outline" onClick={refresh} disabled={refreshing}>
 							<RefreshCw className="h-4 w-4" />
 						</Button>
 					</div>
@@ -402,7 +404,7 @@ export function AdminPage() {
 										手动验证通过时通知用户
 									</label>
 								</div>
-								<Button onClick={saveSettings} disabled={loading}>{loading ? '保存中...' : '保存设置'}</Button>
+								<Button onClick={saveSettings} disabled={saving}>{saving ? '保存中...' : '保存设置'}</Button>
 							</CardContent>
 						</Card>
 
@@ -422,7 +424,7 @@ export function AdminPage() {
 										<Label>有效时长（小时）</Label>
 										<Input type="number" min={1} value={inviteHours} onChange={(e) => setInviteHours(parseInt(e.target.value) || 72)} className="w-24" />
 									</div>
-									<Button onClick={generateInvites} disabled={loading}>
+									<Button onClick={generateInvites} disabled={saving}>
 										<Key className="h-4 w-4" />
 										生成邀请码
 									</Button>
@@ -466,7 +468,7 @@ export function AdminPage() {
 										<Label htmlFor="cat-name">分类名称</Label>
 										<Input id="cat-name" value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} />
 									</div>
-									<Button onClick={createCategory} disabled={loading}>添加</Button>
+									<Button onClick={createCategory} disabled={saving}>添加</Button>
 								</div>
 								<div className="space-y-2">
 									{categories.map((c) => (
@@ -555,7 +557,7 @@ export function AdminPage() {
 									<div className="grid gap-2"><Label htmlFor="edit-avatar">头像 URL</Label><Input id="edit-avatar" value={editAvatarUrl} onChange={(e) => setEditAvatarUrl(e.target.value)} /></div>
 									<div className="grid gap-2"><Label htmlFor="edit-password">新密码 (留空不变)</Label><Input id="edit-password" value={editPassword} onChange={(e) => setEditPassword(e.target.value)} /></div>
 								</div>
-								<DialogFooter><Button variant="outline" onClick={() => setEditOpen(false)}>取消</Button><Button onClick={saveEdit} disabled={loading}>{loading ? '保存中...' : '保存'}</Button></DialogFooter>
+								<DialogFooter><Button variant="outline" onClick={() => setEditOpen(false)}>取消</Button><Button onClick={saveEdit} disabled={saving}>{saving ? '保存中...' : '保存'}</Button></DialogFooter>
 							</DialogContent>
 						</Dialog>
 

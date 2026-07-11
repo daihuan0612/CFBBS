@@ -14,7 +14,10 @@ import { validateText } from '@/lib/validators';
 
 export function SettingsPage() {
 	const [user, setUserState] = React.useState<User | null>(() => getUser());
-	const [loading, setLoading] = React.useState(false);
+	const [saving, setSaving] = React.useState(false);
+	const [uploading, setUploading] = React.useState(false);
+	const [totpLoading, setTotpLoading] = React.useState(false);
+	const [deleting, setDeleting] = React.useState(false);
 	const [error, setError] = React.useState('');
 
 	const [username, setUsername] = React.useState(user?.username || '');
@@ -47,15 +50,12 @@ export function SettingsPage() {
 		if (username.length > 20) return setError('用户名过长 (最多 20 字符)');
 		if (avatarUrl && avatarUrl.length > 500) return setError('头像 URL 过长 (最多 500 字符)');
 
-		setLoading(true);
+		setSaving(true);
 		try {
 			const data = await apiFetch<{ user: User }>('/user/profile', {
 				method: 'POST',
 				headers: getSecurityHeaders('POST'),
-				body: JSON.stringify({
-					username,
-					avatar_url: avatarUrl,
-				})
+				body: JSON.stringify({ username, avatar_url: avatarUrl }),
 			});
 			setUser(data.user);
 			setUserState(data.user);
@@ -63,26 +63,25 @@ export function SettingsPage() {
 		} catch (e: any) {
 			setError(String(e?.message || e));
 		} finally {
-			setLoading(false);
+			setSaving(false);
 		}
 	}
 
 	async function uploadAvatar(file: File) {
 		if (!user) return;
 		setError('');
-		// allow larger avatar images (2MB)
 		if (file.size > 2 * 1024 * 1024) return setError('文件过大 (最大 2MB)');
 
 		const formData = new FormData();
 		formData.append('file', file);
 		formData.append('type', 'avatar');
 
-		setLoading(true);
+		setUploading(true);
 		try {
 			const res = await fetch(`${API_BASE}/upload`, {
 				method: 'POST',
 				headers: getSecurityHeaders('POST', null),
-				body: formData
+				body: formData,
 			});
 			const data = (await res.json()) as any;
 			if (!res.ok) throw new Error(data?.error || '上传失败');
@@ -90,36 +89,36 @@ export function SettingsPage() {
 		} catch (e: any) {
 			setError(String(e?.message || e));
 		} finally {
-			setLoading(false);
+			setUploading(false);
 		}
 	}
 
 	async function startTotpSetup() {
 		setError('');
-		setLoading(true);
+		setTotpLoading(true);
 		try {
 			const data = await apiFetch<{ secret: string; uri: string }>('/user/totp/setup', {
 				method: 'POST',
 				headers: getSecurityHeaders('POST'),
-				body: JSON.stringify({})
+				body: JSON.stringify({}),
 			});
 			setTotpSecret(data.secret);
 			setTotpUri(data.uri);
 		} catch (e: any) {
 			setError(String(e?.message || e));
 		} finally {
-			setLoading(false);
+			setTotpLoading(false);
 		}
 	}
 
 	async function verifyTotp() {
 		setError('');
-		setLoading(true);
+		setTotpLoading(true);
 		try {
 			await apiFetch('/user/totp/verify', {
 				method: 'POST',
 				headers: getSecurityHeaders('POST'),
-				body: JSON.stringify({ token: totpCode })
+				body: JSON.stringify({ token: totpCode }),
 			});
 			if (user) {
 				const updated = { ...user, totp_enabled: true };
@@ -133,7 +132,7 @@ export function SettingsPage() {
 		} catch (e: any) {
 			setError(String(e?.message || e));
 		} finally {
-			setLoading(false);
+			setTotpLoading(false);
 		}
 	}
 
@@ -141,19 +140,19 @@ export function SettingsPage() {
 		if (!user) return;
 		setError('');
 		if (!confirm('确定要删除您的账号吗？此操作无法撤销。')) return;
-		setLoading(true);
+		setDeleting(true);
 		try {
 			await apiFetch('/user/delete', {
 				method: 'POST',
 				headers: getSecurityHeaders('POST'),
-				body: JSON.stringify({ password: deletePassword, totp_code: deleteTotp })
+				body: JSON.stringify({ password: deletePassword, totp_code: deleteTotp }),
 			});
 			logout();
 			window.location.href = '/';
 		} catch (e: any) {
 			setError(String(e?.message || e));
 		} finally {
-			setLoading(false);
+			setDeleting(false);
 		}
 	}
 
@@ -208,8 +207,8 @@ export function SettingsPage() {
 							/>
 						</div>
 
-						<Button onClick={saveProfile} disabled={loading}>
-							{loading ? '保存中...' : '保存资料'}
+						<Button onClick={saveProfile} disabled={saving}>
+							{saving ? '保存中...' : '保存资料'}
 						</Button>
 					</CardContent>
 				</Card>
@@ -224,8 +223,8 @@ export function SettingsPage() {
 						) : (
 							<>
 								<div className="text-sm text-muted-foreground">启用 2FA 以保护您的账户。</div>
-								<Button onClick={startTotpSetup} disabled={loading || !!totpSecret}>
-									{loading ? '处理中...' : '开始启用'}
+								<Button onClick={startTotpSetup} disabled={totpLoading || !!totpSecret}>
+									{totpLoading ? '处理中...' : '开始启用'}
 								</Button>
 								{totpSecret ? (
 									<div className="space-y-3 rounded-md border p-4">
@@ -243,8 +242,8 @@ export function SettingsPage() {
 												autoComplete="one-time-code"
 												className="w-32"
 											/>
-											<Button onClick={verifyTotp} disabled={loading}>
-												{loading ? '验证中...' : '验证并启用'}
+											<Button onClick={verifyTotp} disabled={totpLoading}>
+												{totpLoading ? '验证中...' : '验证并启用'}
 											</Button>
 										</div>
 									</div>
@@ -284,8 +283,8 @@ export function SettingsPage() {
 								/>
 							</div>
 						</div>
-						<Button variant="destructive" onClick={deleteAccount} disabled={loading}>
-							{loading ? '处理中...' : '删除账号'}
+						<Button variant="destructive" onClick={deleteAccount} disabled={deleting}>
+							{deleting ? '处理中...' : '删除账号'}
 						</Button>
 					</CardContent>
 				</Card>
