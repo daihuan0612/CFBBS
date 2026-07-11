@@ -1276,6 +1276,20 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 			}
 		}
 
+		// DELETE /api/notifications/:id
+		if (url.pathname.match(/^\/api\/notifications\/\d+$/) && method === 'DELETE') {
+			try {
+				const userPayload = await authenticate(request);
+				const id = url.pathname.split('/')[3];
+				await env.cforum_db.prepare(
+					'DELETE FROM notifications WHERE id = ? AND user_id = ?'
+				).bind(id, userPayload.id).run();
+				return jsonResponse({ success: true });
+			} catch (e) {
+				return handleError(e);
+			}
+		}
+
 		// POST /api/admin/categories
 		if (url.pathname === '/api/admin/categories' && method === 'POST') {
 			try {

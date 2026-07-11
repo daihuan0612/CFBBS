@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Bell, BellRing } from 'lucide-react';
+import { Bell, BellRing, X } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { apiFetch, getSecurityHeaders } from '@/lib/api';
@@ -65,6 +65,20 @@ export function NotificationBell() {
 		} catch { /* ignore */ }
 	};
 
+	const deleteNotification = async (id: number, e: React.MouseEvent) => {
+		e.stopPropagation();
+		try {
+			await apiFetch(`/notifications/${id}`, { method: 'DELETE', headers: getSecurityHeaders('DELETE') });
+			setNotifications(prev => {
+				const removed = prev.find(n => n.id === id);
+				if (removed && !removed.is_read) {
+					setUnreadCount(c => Math.max(0, c - 1));
+				}
+				return prev.filter(n => n.id !== id);
+			});
+		} catch { /* ignore */ }
+	};
+
 	React.useEffect(() => {
 		if (!open) return;
 		function handleClick(e: MouseEvent) {
@@ -95,11 +109,31 @@ export function NotificationBell() {
 				<div className="absolute right-0 top-full z-50 mt-1 w-80 rounded-lg border bg-background shadow-lg">
 					<div className="flex items-center justify-between border-b px-3 py-2">
 						<span className="text-sm font-medium">通知</span>
-						{unreadCount > 0 && (
-							<button className="text-xs text-muted-foreground hover:text-foreground" onClick={markAllRead}>
-								全部已读
-							</button>
-						)}
+						<div className="flex items-center gap-2">
+							{unreadCount > 0 && (
+								<button className="text-xs text-muted-foreground hover:text-foreground" onClick={markAllRead}>
+									全部已读
+								</button>
+							)}
+							{notifications.length > 0 && (
+								<button
+									className="text-xs text-muted-foreground hover:text-destructive"
+									onClick={async () => {
+										try {
+											await Promise.all(
+												notifications.map(n =>
+													apiFetch(`/notifications/${n.id}`, { method: 'DELETE', headers: getSecurityHeaders('DELETE') })
+												)
+											);
+											setNotifications([]);
+											setUnreadCount(0);
+										} catch { /* ignore */ }
+									}}
+								>
+									全部删除
+								</button>
+							)}
+						</div>
 					</div>
 					<div className="max-h-72 overflow-y-auto">
 						{notifications.length === 0 ? (
@@ -119,6 +153,13 @@ export function NotificationBell() {
 											{formatTime(n.created_at)}
 										</div>
 									</div>
+									<button
+										className="mt-0.5 shrink-0 text-muted-foreground/50 hover:text-destructive"
+										onClick={(e) => deleteNotification(n.id, e)}
+										title="删除"
+									>
+										<X className="h-3.5 w-3.5" />
+									</button>
 								</div>
 							))
 						)}

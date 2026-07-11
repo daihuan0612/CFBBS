@@ -877,11 +877,11 @@ export function IndexPage() {
 				<div className="space-y-4">
 					<div ref={listTopRef} />
 					{loading ? (
-						<Card>
+						<Card className="shadow-none rounded-none border-0">
 							<CardContent className="py-6 text-sm text-muted-foreground">加载中...</CardContent>
 						</Card>
 					) : posts.length === 0 ? (
-						<Card>
+						<Card className="shadow-none rounded-none border-0">
 							<CardContent className="py-6 text-sm text-muted-foreground">暂无帖子</CardContent>
 						</Card>
 					) : (

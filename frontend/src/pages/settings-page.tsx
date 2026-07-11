@@ -177,7 +177,7 @@ export function SettingsPage() {
 
 				{error ? <div className="rounded-md border border-destructive/50 bg-destructive/5 p-3 text-sm text-destructive">{error}</div> : null}
 
-				<Card>
+				<Card className="shadow-none rounded-none border-0">
 					<CardHeader>
 						<CardTitle>个人资料</CardTitle>
 					</CardHeader>
@@ -214,7 +214,7 @@ export function SettingsPage() {
 					</CardContent>
 				</Card>
 
-				<Card>
+				<Card className="shadow-none rounded-none border-0">
 					<CardHeader>
 						<CardTitle>双重验证 (2FA)</CardTitle>
 					</CardHeader>
