@@ -898,7 +898,7 @@ export function IndexPage() {
 												<img
 													src={coverUrl}
 													alt=""
-													className="h-20 w-28 shrink-0 object-cover"
+													className="h-20 w-28 shrink-0 object-contain"
 													loading="lazy"
 													referrerPolicy="no-referrer"
 												/>
