@@ -38,8 +38,6 @@ export function NotificationBell() {
 	React.useEffect(() => {
 		if (!getToken()) return;
 		fetchUnread();
-		const interval = setInterval(fetchUnread, 30000);
-		return () => clearInterval(interval);
 	}, [fetchUnread]);
 
 	const handleToggle = () => {
