@@ -1,8 +1,8 @@
 # CFBBS
 
-基于 Cloudflare Workers + Pages + D1 + R2 的论坛，增强版。
+> 本仓库根据 [adysec/cforum](https://github.com/adysec/cforum) 原版代码进行二次开发改造，在原论坛基础上新增邀请码注册、加密网盘链接、功能开关、LSB 盲水印、编辑器增强、独立插件体系等功能。**已移除 SMTP 邮件服务**，密码重置改为管理员后台生成临时密码。
 
-**二次开发特性**：邀请码注册、加密网盘链接、功能开关、LSB 盲水印、编辑器增强、独立插件体系。
+基于 Cloudflare Workers + Pages + D1 + R2 的论坛系统。
 
 ---
 
@@ -27,124 +27,231 @@
   └─ 用户看到页面
 ```
 
+---
+
 ## ✨ 功能特性
 
-### 核心功能
-- ✅ **帖子管理** - 发布、编辑、删除、置顶、分类
-- ✅ **评论系统** - 多级评论、支持回复
-- ✅ **用户认证** - 注册、登录、2FA
-- ✅ **图片上传** - 前端 Luban 压缩 + WebP 转码 + 非图片拦截，存储到 R2
-- ✅ **用户资料** - 头像、个人资料
-- ✅ **管理后台** - 用户管理、分类管理、设置管理
-- ✅ **访问统计** - 浏览量统计
-- ✅ **点赞系统** - 灵活的点赞/取消点赞
-- ✅ **验证码** - 集成 Cloudflare Turnstile
+### 核心功能（原版）
+- ✅ **帖子管理** — 发布、编辑、删除、置顶、分类
+- ✅ **评论系统** — 多级评论、支持回复
+- ✅ **用户认证** — 注册、登录、2FA
+- ✅ **图片上传** — 前端 Luban 压缩 + WebP 转码 + 非图片拦截，存储到 R2
+- ✅ **用户资料** — 头像、个人资料
+- ✅ **管理后台** — 用户管理、分类管理、设置管理
+- ✅ **访问统计** — 浏览量统计
+- ✅ **点赞系统** — 点赞/取消点赞
+- ✅ **验证码** — 集成 Cloudflare Turnstile
 
 ### 二次开发新增
-- ✅ **邀请码注册** - 管理员生成邀请码，支持 invite_only 模式开关
-- ✅ **加密网盘链接** - 仅录入第三方网盘链接（非本地文件），支持设置访问密码验证
-- ✅ **功能开关** - 后台一键开关：点赞、评论、发帖、收藏、水印、邀请码、加密附件
-- ✅ **LSB 盲水印** - 1×1 Canvas 像素级用户标识，零视觉占用
-- ✅ **编辑器增强** - 居中/缩进/视频插入/网盘链接插入工具栏按钮
-- ✅ **管理员重置密码** - 生成 24h 有效临时密码，自动记录密码历史
-- ✅ **独立插件体系** - 前置速率限制、定时清理、统一 API 工具、Markdown 预处理
+- ✅ **邀请码注册** — 管理员生成邀请码，支持 `invite_only` 模式开关
+- ✅ **加密网盘链接** — 仅录入第三方网盘链接（非本地文件），支持设置访问密码验证
+- ✅ **功能开关** — 后台一键开关：点赞、评论、发帖、收藏、水印、邀请码、加密附件
+- ✅ **LSB 盲水印** — 1×1 Canvas 像素级用户标识，零视觉占用，注入到每个页面
+- ✅ **编辑器增强** — 居中/缩进/视频插入/网盘链接插入工具栏按钮
+- ✅ **管理员重置密码** — 生成 24h 有效临时密码，自动记录密码历史
+- ✅ **独立插件体系** — 前置速率限制、定时清理、统一 API 工具、Markdown 预处理
 
 ### 独立插件目录 `src/plugins/`
 
 | 插件 | 功能 | 说明 |
 |------|------|------|
 | `rate-limiter.ts` | 前置速率限制 | 登录 5次/分，注册 3次/分，上传 10次/分，默认 60次/分，不修改原路由 |
-| `scheduled-cleanup.ts` | 定时清理 | Worker scheduled 事件触发，清理过期 nonce、临时密码、限流记录 |
-| `utils.ts` | 统一 API 工具库 | `extractUrlParams`、`ApiError` 错误类、日期格式化、时间友好显示 |
-| `markdown.ts` | Markdown 预处理 | 解码 HTML 实体编码，修复双倍转义问题，仅新页面启用 |
+| `scheduled-cleanup.ts` | 定时清理 | Worker `scheduled` 事件触发，清理过期 nonce、临时密码、限流记录 |
+| `utils.ts` | 统一 API 工具库 | `extractUrlParams`、`ApiError` 错误类、日期格式化、`timeAgo` |
+| `markdown.ts` | Markdown 预处理 | 解码 HTML 实体编码，修复后端双倍转义问题，仅新页面启用 |
 
-## 🚀 部署说明
+---
 
-### 前置准备
+## 🚀 部署指南
 
-1. 拥有 [Cloudflare](https://dash.cloudflare.com/) 账号
-2. 开通 D1 数据库、R2 存储（免费额度足够）
-3. Node.js 18+
+### 环境配置
 
-### 第一步：Fork 仓库
+#### 必需配置
 
-Fork 本项目到你的 GitHub 账号。
+| 配置项 | 说明 |
+|--------|------|
+| **Cloudflare Account** | 需开通 Workers Paid（或免费版）、D1、R2、Pages |
+| **Node.js** | 18+ |
+| **npm / pnpm** | 包管理器 |
+| **wrangler CLI** | `npm install -g wrangler` |
 
-### 第二步：获取 Cloudflare 凭证
+#### Worker 环境变量 (wrangler.jsonc / Cloudflare Dashboard)
 
-#### API Token
-1. 登录 [Cloudflare Dashboard](https://dash.cloudflare.com/)
-2. **My Profile > API Tokens > Create Token**
-3. 权限配置：
-   - Account > Workers Scripts — Edit
-   - Account > D1 — Edit
-   - Account > R2 — Edit
-   - Account > Pages — Edit
-
-#### Account ID
-- Cloudflare Dashboard 首页右侧栏可查看
-
-### 第三步：配置 GitHub Secrets
-
-在你的 GitHub 仓库 **Settings > Secrets and variables > Actions** 中添加：
-
-| Secret 名称 | 是否必需 | 说明 |
-|-----------|---------|------|
-| `CF_API_TOKEN` | 必需 | Cloudflare API Token |
-| `CF_ACCOUNT_ID` | 必需 | Cloudflare Account ID |
-| `JWT_SECRET` | 必需 | 随机 32 位字符串 `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"` |
-| `BASE_URL` | 推荐 | 站点 URL，如 `https://forum.example.com` |
+| 变量名 | 必需 | 说明 |
+|--------|------|------|
+| `JWT_SECRET` | **是** | 至少 32 字符随机字符串，用于签发 JWT Token |
+| `BASE_URL` | 推荐 | 站点完整 URL，如 `https://forum.example.com` |
 | `TURNSTILE_SITE_KEY` | 可选 | Cloudflare Turnstile Site Key |
-| `TURNSTILE_SECRET_KEY` | 可选 | Cloudflare Turnstile Secret |
+| `TURNSTILE_SECRET_KEY` | 可选 | Cloudflare Turnstile Secret Key |
 
-> **注意**：本版本已移除 SMTP 邮件服务。密码重置改为管理员后台生成临时密码，无需配置邮件服务器。
+#### D1 数据库绑定
 
-### 第四步：手动触发部署
+wrangler.jsonc 中已预配置：
 
-在 GitHub Actions 页面选择 **Deploy to Cloudflare**，点击 **Run workflow**。
-
-### 第五步：初始化数据库
-
-部署完成后，执行数据库迁移：
-
-```bash
-# 安装依赖
-npm install
-
-# 执行迁移
-npx wrangler d1 migrations apply cforum-db --remote
+```jsonc
+"d1_databases": [
+  {
+    "binding": "cforum_db",
+    "database_name": "cforum-db",
+    "database_id": "your-database-id"
+  }
+]
 ```
 
-### 第六步：首次登录
+需将 `database_id` 替换为实际创建的 D1 数据库 ID。
 
-默认管理员账号（首次登录后请立即修改密码）：
-- 邮箱：`admin@adysec.com`
-- 密码：`Admin@123`
+#### R2 存储桶绑定
 
-登录后进入管理后台（`/admin`）：
-1. 生成邀请码用于新用户注册
-2. 根据需要开启/关闭功能开关
-3. 配置加密网盘附件等选项
+```jsonc
+"r2_buckets": [
+  {
+    "binding": "BUCKET",
+    "bucket_name": "cforum-uploads"
+  }
+]
+```
 
-## 🌐 自定义域名
+需在 Cloudflare Dashboard 中创建名为 `cforum-uploads` 的 R2 存储桶。
 
-1. Cloudflare Dashboard → Pages → 选择项目 → **Custom domains**
-2. 添加域名（如 `forum.example.com`）
-3. 等待 DNS 生效
+### 部署步骤
 
-## 🗄️ 数据库结构
+#### 方式一：本地 wrangler 部署（推荐开发调试）
+
+```bash
+# 1. 安装依赖
+npm install
+
+# 2. 登录 Cloudflare
+npx wrangler login
+
+# 3. 创建 D1 数据库
+npx wrangler d1 create cforum-db
+# → 将输出的 database_id 写入 wrangler.jsonc
+
+# 4. 创建 R2 存储桶
+npx wrangler r2 bucket create cforum-uploads
+
+# 5. 执行数据库迁移
+npx wrangler d1 migrations apply cforum-db --remote
+
+# 6. 构建前端
+cd frontend
+npm install
+npm run build
+cd ..
+
+# 7. 部署 Worker
+npx wrangler deploy
+
+# 8. 部署 Pages（静态前端 + Functions 代理）
+npx wrangler pages deploy public --branch production
+```
+
+#### 方式二：GitHub Actions 自动化部署
+
+项目内置 `.github/workflows/deploy.yml`，配置好 GitHub Secrets 后推送即可自动部署。
+
+**GitHub Secrets 配置表：**
+
+| Secret 名称 | 必需 | 说明 |
+|-----------|------|------|
+| `CF_API_TOKEN` | 是 | Cloudflare API Token（权限：Workers/D1/R2/Pages 均为 Edit） |
+| `CF_ACCOUNT_ID` | 是 | Cloudflare Account ID（Dashboard 首页查看） |
+| `JWT_SECRET` | 是 | 随机 32 位 Base64 字符串 |
+| `BASE_URL` | 推荐 | 站点 URL |
+| `TURNSTILE_SITE_KEY` | 可选 | Turnstile Site Key |
+| `TURNSTILE_SECRET_KEY` | 可选 | Turnstile Secret Key |
+
+### 首次初始化
+
+部署完成后：
+
+1. 访问站点，使用默认管理员登录：
+   - 邮箱：`admin@adysec.com`
+   - 密码：`Admin@123`
+2. 进入 `/admin` 管理后台：
+   - **生成邀请码** — 开启 `invite_only` 模式后新用户需邀请码注册
+   - **功能开关** — 按需开启/关闭点赞、评论、发帖、收藏、水印等功能
+   - **加密附件** — 开启后用户可在帖子中添加网盘链接
+3. 建议立即修改默认管理员密码
+
+---
+
+## 🗄️ 数据库变更
 
 ### 新增表（二次开发）
 
-| 表名 | 说明 |
-|------|------|
-| `invitation_codes` | 邀请码管理 |
-| `password_history` | 密码变更历史 |
-| `temp_passwords` | 管理员生成的临时密码 |
-| `encrypted_attachments` | 网盘链接（仅存文本，无文件存储） |
-| `user_watermarks` | LSB 盲水印元数据 |
-| `rate_limits` | 速率限制记录 |
+| 表名 | 用途 | 关键字段 |
+|------|------|---------|
+| `invitation_codes` | 邀请码管理 | `code`, `created_by`, `used_by`, `expires_at`, `is_active` |
+| `password_history` | 密码变更历史 | `user_id`, `password_hash` |
+| `temp_passwords` | 管理员生成的 24h 临时密码 | `user_id`, `temp_password`, `temp_password_hash`, `expires_at` |
+| `encrypted_attachments` | 网盘链接存储（纯文本） | `link_url`, `file_name`, `extract_code`, `password_hash` |
+| `user_watermarks` | LSB 盲水印元数据 | `user_id`, `watermark_data` |
+| `rate_limits` | 速率限制记录 | `ip`, `endpoint`, `count`, `window_start` |
+
+### 新增系统设置项
+
+| Key | 默认值 | 说明 |
+|-----|--------|------|
+| `invite_only` | `1` | 邀请码注册模式 |
+| `encrypted_attachments_enabled` | `0` | 加密网盘附件功能 |
+| `feature_likes` | `1` | 点赞功能 |
+| `feature_bookmarks` | `1` | 收藏功能 |
+| `feature_comments` | `1` | 评论功能 |
+| `feature_posts` | `1` | 发帖功能 |
+| `watermark_enabled` | `1` | LSB 盲水印 |
+
+---
+
+## ⚠️ 技术债务说明
+
+### 本次改造引入的已知问题
+
+| 级别 | 问题 | 文件 | 说明 | 影响 |
+|------|------|------|------|------|
+| LOW | 明文临时密码存留 DB | `src/index.ts:2095` | `temp_passwords.temp_password` 字段存明文，已通过定时清理 + `is_used` 标记减轻影响 | 极小，管理员操作后可标记已使用 |
+| LOW | 错误提示静默吞掉 | `frontend/src/pages/post-page.tsx:153` | `saveAttachmentLink` catch 无用户反馈 | 用户感知不到保存失败 |
+| LOW | DOM 查询取密码 | `frontend/src/pages/post-page.tsx:659` | 使用 `document.getElementById` 而非 React state | 非标准做法，不影响功能 |
+| LOW | 限流失效无告警 | `src/plugins/rate-limiter.ts:43` | `catch {}` 全量吞噬 | 数据库异常时限流失效但不影响业务 |
+
+### 原版框架固有债务（本次未修改）
+
+| 问题 | 位置 | 不改原因 |
+|------|------|---------|
+| HTML 实体编码破坏 Markdown | 后端 `escapeHtml` 存储 + 前端 `dangerouslySetInnerHTML` | 修改会波及全部历史帖子，插件 `markdown.ts` 仅新页面启用 |
+| Nonce 表仅 1% 概率清理 | `src/security.ts:94` | 原始设计，插件 `scheduled-cleanup.ts` 已提供定时清理替代 |
+| 密码异或 bug | `hashPassword()` 中 `replace` 回调 `^` 非预期 | 原始代码遗留，不触发运行时异常 |
+| 错误消息字符串匹配 | `handleError` 用 `includes` 匹配后端消息 | 原始设计，耦合度高 |
+| `feature_bookmarks` 无前端消费方 | 全站 | 原始代码未实现收藏按钮，设置为预留 |
+
+---
+
+## 🧪 本地开发
+
+```bash
+# 前端 dev server（热更新）
+cd frontend
+npm run dev
+
+# Worker 本地调试
+npx wrangler dev src/index.ts --remote
+
+# 数据库迁移（本地）
+npx wrangler d1 migrations apply cforum-db --local
+
+# 数据库迁移（远程）
+npx wrangler d1 migrations apply cforum-db --remote
+```
+
+---
 
 ## 📄 许可证
 
-MIT License - 详见 [LICENSE](LICENSE)
+MIT License — 详见 [LICENSE](LICENSE)
+
+## 🔗 相关链接
+
+- 原版仓库：[adysec/cforum](https://github.com/adysec/cforum)
+- Cloudflare Workers 文档：https://developers.cloudflare.com/workers/
+- Cloudflare D1 文档：https://developers.cloudflare.com/d1/
