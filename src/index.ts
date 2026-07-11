@@ -813,6 +813,22 @@ export default {
 			}
 		}
 
+		// GET /api/user/me — 调试端点：从数据库返回当前用户完整信息
+		if (url.pathname === '/api/user/me' && method === 'GET') {
+			try {
+				const payload = await authenticate(request);
+				const user = await env.cforum_db.prepare('SELECT id, email, username, avatar_url, role, totp_enabled, email_notifications FROM users WHERE id = ?').bind(payload.id).first<any>();
+				if (!user) return jsonResponse({ error: 'User not found' }, 404);
+				return jsonResponse({
+					username: user.username,
+					email: user.email,
+					db_id: user.id,
+				});
+			} catch (e) {
+				return handleError(e);
+			}
+		}
+
 		// POST /api/user/delete
 		if (url.pathname === '/api/user/delete' && method === 'POST') {
 			try {
