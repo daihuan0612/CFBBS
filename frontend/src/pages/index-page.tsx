@@ -877,11 +877,11 @@ export function IndexPage() {
 				<div className="space-y-4">
 					<div ref={listTopRef} />
 					{loading ? (
-						<Card className="shadow-none rounded-none border-0">
+						<Card>
 							<CardContent className="py-6 text-sm text-muted-foreground">加载中...</CardContent>
 						</Card>
 					) : posts.length === 0 ? (
-						<Card className="shadow-none rounded-none border-0">
+						<Card>
 							<CardContent className="py-6 text-sm text-muted-foreground">暂无帖子</CardContent>
 						</Card>
 					) : (
@@ -891,7 +891,7 @@ export function IndexPage() {
 							const menuOpen = adminMenuPostId === p.id;
 							const actionLoading = adminActionPostId === p.id;
 							return (
-								<Card key={p.id} className="shadow-none rounded-none border-0">
+								<Card key={p.id}>
 									<CardContent className="py-5">
 										<div className="flex gap-4">
 											{coverUrl ? (

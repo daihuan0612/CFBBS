@@ -124,6 +124,8 @@ export function AdminPage() {
 		} catch { /* ignore */ }
 	}, []);
 
+	React.useEffect(() => { loadInvitations(); }, [loadInvitations]);
+
 	async function saveSettings() {
 		if (!isAdmin) return;
 		setSavingSettings(true);
@@ -311,13 +313,13 @@ export function AdminPage() {
 				{cacheResult ? <div className="rounded-md border border-emerald-500/50 bg-emerald-500/10 p-3 text-sm text-emerald-700 dark:text-emerald-300">{cacheResult}</div> : null}
 
 				{user?.role !== 'admin' ? (
-					<Card className="shadow-none rounded-none border-0"><CardContent className="py-6 text-sm text-muted-foreground">无权限访问</CardContent></Card>
+					<Card><CardContent className="py-6 text-sm text-muted-foreground">无权限访问</CardContent></Card>
 				) : (
 					<>
 						{error ? <div className="rounded-md border border-destructive/50 bg-destructive/5 p-3 text-sm text-destructive">{error}</div> : null}
 
 						{/* 统计 */}
-						<Card className="shadow-none rounded-none border-0">
+						<Card>
 							<CardHeader><CardTitle>统计</CardTitle></CardHeader>
 							<CardContent className="grid gap-4 sm:grid-cols-3">
 								<div className="rounded-md border p-4">
@@ -336,7 +338,7 @@ export function AdminPage() {
 						</Card>
 
 						{/* 全局配置 - 功能说明 */}
-						<Card className="shadow-none rounded-none border-0">
+						<Card>
 							<CardHeader>
 								<CardTitle>全局配置</CardTitle>
 								<p className="text-sm text-muted-foreground">【功能说明】在这里统一控制论坛各项功能的开启和关闭。关闭后前端对应的按钮和入口会隐藏，但不会删除任何代码。</p>
@@ -412,7 +414,7 @@ export function AdminPage() {
 						</Card>
 
 						{/* 邀请码管理 - 功能说明 */}
-						<Card className="shadow-none rounded-none border-0">
+						<Card>
 							<CardHeader>
 								<CardTitle>邀请码管理</CardTitle>
 								<p className="text-sm text-muted-foreground">【功能说明】在这里生成和管理注册邀请码。邀请码有效期内可被新用户用于注册。关闭"邀请码注册"开关后，任何人都可以自由注册。</p>
@@ -463,7 +465,7 @@ export function AdminPage() {
 						</Card>
 
 						{/* 分类管理 */}
-						<Card className="shadow-none rounded-none border-0">
+						<Card>
 							<CardHeader><CardTitle>分类管理</CardTitle></CardHeader>
 							<CardContent className="space-y-4">
 								<div className="flex flex-wrap items-end gap-2">
@@ -495,7 +497,7 @@ export function AdminPage() {
 						</Card>
 
 						{/* 用户管理 */}
-						<Card className="shadow-none rounded-none border-0">
+						<Card>
 							<CardHeader>
 								<CardTitle>用户管理</CardTitle>
 								<p className="text-sm text-muted-foreground">【功能说明】管理所有用户账号。点击【重置密码】可为用户生成一个24小时有效的临时密码，系统会展示明文密码供你转发给用户。</p>

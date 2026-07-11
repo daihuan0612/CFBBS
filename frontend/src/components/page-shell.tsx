@@ -15,6 +15,24 @@ export function PageShell({
 	const [generatedSecret, setGeneratedSecret] = React.useState<string>('');
 	const canvasRef = React.useRef<HTMLCanvasElement>(null);
 
+	// 同步 user state 与 localStorage（处理 settings 页面保存资料后未刷新的情况）
+	React.useEffect(() => {
+		const syncUser = () => {
+			const stored = getUser();
+			setUser(prev => {
+				const prevStr = JSON.stringify(prev);
+				const currStr = JSON.stringify(stored);
+				return prevStr === currStr ? prev : stored;
+			});
+		};
+		window.addEventListener('focus', syncUser);
+		document.addEventListener('visibilitychange', syncUser);
+		return () => {
+			window.removeEventListener('focus', syncUser);
+			document.removeEventListener('visibilitychange', syncUser);
+		};
+	}, []);
+
 	// 完全私密模式：未登录强制跳转登录页
 	React.useEffect(() => {
 		if (!user) {

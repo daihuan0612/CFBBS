@@ -121,7 +121,7 @@ export function LoginPage() {
 	return (
 		<div className="min-h-dvh bg-muted/20 flex flex-col items-center justify-center gap-4">
 			<div className="flex flex-col items-center gap-2">
-				<img src="/pwa-511.png" alt="侃侃看" className="h-20 w-20 rounded-2xl object-cover shadow-sm" />
+				<img src="/pwa-511.png" alt="侃侃看" className="h-20 w-20" />
 				<h1 className="text-xl font-semibold tracking-tight">侃侃看</h1>
 			</div>
 			<Card className="w-full max-w-md mx-4">

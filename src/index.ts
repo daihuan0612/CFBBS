@@ -155,8 +155,8 @@ export default {
 		const jsonResponse = (data: any, status = 200) => {
 			const headers = new Headers(corsHeaders);
 			headers.set('Content-Type', 'application/json');
-			// 仅缓存静态列表类接口（帖子列表、分类），忽略动态配置和鉴权接口
-			const cacheablePaths = ['/api/posts', '/api/categories', '/api/users'];
+			// 仅缓存静态列表类接口（帖子列表、用户），忽略动态配置和鉴权接口
+			const cacheablePaths = ['/api/posts', '/api/users'];
 			if (method === 'GET' && status < 400 && cacheablePaths.some(p => url.pathname === p || url.pathname.startsWith(p + '?'))) {
 				headers.set('Cache-Control', 'public, max-age=300, s-maxage=86400');
 			} else if (method === 'GET' && status < 400) {
