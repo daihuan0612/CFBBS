@@ -350,21 +350,6 @@ export default {
 					console.error('Error running schema statement', e, stmt);
 				}
 			}
-			// seed admin from env vars (if configured)
-			const adminEmail = env.ADMIN_EMAIL || '';
-			const adminPassword = env.ADMIN_PASSWORD || '';
-			const adminNickname = env.ADMIN_NICKNAME || '';
-			if (adminEmail && adminPassword) {
-				const adminUser = adminNickname || 'Admin';
-				const encoder = new TextEncoder();
-				const data = encoder.encode(adminPassword);
-				const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-				const hashArray = Array.from(new Uint8Array(hashBuffer));
-				const adminHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-				await env.cforum_db.prepare(
-					`INSERT OR IGNORE INTO users (email, username, password, role, verified, nickname) VALUES (?, ?, ?, 'admin', 1, ?)`
-				).bind(adminEmail, adminUser, adminHash, adminUser).run();
-			}
 			// verify posts table exists now
 			try {
 				await env.cforum_db.prepare('SELECT 1 FROM posts LIMIT 1').first();
@@ -373,8 +358,26 @@ export default {
 			}
 		};
 
+		// Seed admin from env vars — runs on every deployment, not just first schema creation.
+		const seedAdmin = async () => {
+			const adminEmail = env.ADMIN_EMAIL || '';
+			const adminPassword = env.ADMIN_PASSWORD || '';
+			const adminNickname = env.ADMIN_NICKNAME || '';
+			if (!adminEmail || !adminPassword) return;
+			const encoder = new TextEncoder();
+			const data = encoder.encode(adminPassword);
+			const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+			const hashArray = Array.from(new Uint8Array(hashBuffer));
+			const adminHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+			await env.cforum_db.prepare(
+				`INSERT OR IGNORE INTO users (email, username, password, role, verified, nickname) VALUES (?, ?, ?, 'admin', 1, ?)`
+			).bind(adminEmail, adminNickname || 'Admin', adminHash, adminNickname || 'Admin').run();
+			console.log('Admin user seeded:', adminEmail);
+		};
+
 		// perform initialization before security setup
 		await ensureSchema();
+		await seedAdmin();
 
 		let security: Security;
 		try {
