@@ -345,7 +345,7 @@ export function IndexPage() {
 				const categoryParam = selectedCategory ? `&category_id=${encodeURIComponent(selectedCategory)}` : '';
 				const searchParam = searchQuery ? `&q=${encodeURIComponent(searchQuery)}` : '';
 				const sortParam = `&sort_by=${encodeURIComponent(sortBy)}&sort_dir=${encodeURIComponent(sortDir)}`;
-				const res = await fetch(`/api/posts?limit=${pageLimit}&offset=${offset}${categoryParam}${searchParam}${sortParam}`);
+				const res = await fetch(`${API_BASE}/posts?limit=${pageLimit}&offset=${offset}${categoryParam}${searchParam}${sortParam}`);
 				if (!res.ok) {
 					let msg = `加载帖子失败 (${res.status})`;
 					try {
