@@ -142,6 +142,15 @@ export default {
 			});
 		}
 
+		// Ensure ALL API responses carry CORS headers (cross-origin direct access from Pages)
+		const withCors = (r: Response): Response => {
+			const h = new Headers(r.headers);
+			h.set('Access-Control-Allow-Origin', '*');
+			h.set('Access-Control-Allow-Methods', 'GET, HEAD, POST, OPTIONS, DELETE, PUT');
+			h.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Timestamp, X-Nonce');
+			return new Response(r.body, { status: r.status, statusText: r.statusText, headers: h });
+		};
+
 		// Helper to return JSON response with CORS
 		const jsonResponse = (data: any, status = 200) => {
 			const headers = new Headers(corsHeaders);
