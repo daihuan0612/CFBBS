@@ -24,14 +24,16 @@
 	],
 	/**
 	 * R2 Object Storage (for image uploads)
+	 * 如果账号未开通 R2，注释掉下面配置即可正常部署
+	 * 开通后取消注释并运行: wrangler r2 bucket create cforum-images
 	 * https://developers.cloudflare.com/r2/api/workers/workers-api-reference/
 	 */
-	"r2_buckets": [
-		{
-			"binding": "BUCKET",
-			"bucket_name": "cforum-images"
-		}
-	],
+	// "r2_buckets": [
+	// 	{
+	// 		"binding": "BUCKET",
+	// 		"bucket_name": "cforum-images"
+	// 	}
+	// ],
 	/**
 	 * Enable default *.workers.dev domain
 	 */
