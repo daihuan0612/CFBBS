@@ -9,7 +9,7 @@ const __dirname = path.dirname(__filename);
 export default defineConfig({
 	plugins: [react()],
 	root: path.resolve(__dirname, 'pages'),
-	publicDir: false,
+	publicDir: path.resolve(__dirname, 'static'),
 	build: {
 		outDir: path.resolve(__dirname, '..', 'public'),
 		emptyOutDir: true,
