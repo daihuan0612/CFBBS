@@ -481,26 +481,6 @@ export function IndexPage() {
 		lastOffsetRef.current = pageOffset;
 	}, [pageOffset, loading]);
 
-	// 当用户从帖子详情页返回首页时，自动刷新数据（30秒内不重复请求）
-	React.useEffect(() => {
-		let lastFetch = 0;
-		let wasHidden = false;
-		const handleVisibility = () => {
-			if (document.visibilityState === 'hidden') {
-				wasHidden = true;
-			} else if (document.visibilityState === 'visible' && wasHidden) {
-				wasHidden = false;
-				const now = Date.now();
-				if (now - lastFetch > 30000) {
-					lastFetch = now;
-					fetchPosts(pageOffset);
-				}
-			}
-		};
-		document.addEventListener('visibilitychange', handleVisibility);
-		return () => document.removeEventListener('visibilitychange', handleVisibility);
-	}, [fetchPosts, pageOffset]);
-
 	async function adminTogglePin(post: Post) {
 		if (!user || user.role !== 'admin') return;
 		setAdminActionPostId(post.id);

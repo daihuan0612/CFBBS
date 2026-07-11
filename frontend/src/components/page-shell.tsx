@@ -15,7 +15,7 @@ export function PageShell({
 	const [generatedSecret, setGeneratedSecret] = React.useState<string>('');
 	const canvasRef = React.useRef<HTMLCanvasElement>(null);
 
-	// 同步 user state 与 localStorage（处理 settings 页面保存资料后未刷新的情况）
+	// 页面从缓存恢复时同步最新用户数据
 	React.useEffect(() => {
 		const syncUser = () => {
 			const stored = getUser();
@@ -25,14 +25,8 @@ export function PageShell({
 				return prevStr === currStr ? prev : stored;
 			});
 		};
-		window.addEventListener('focus', syncUser);
-		document.addEventListener('visibilitychange', syncUser);
 		window.addEventListener('pageshow', syncUser);
-		return () => {
-			window.removeEventListener('focus', syncUser);
-			document.removeEventListener('visibilitychange', syncUser);
-			window.removeEventListener('pageshow', syncUser);
-		};
+		return () => window.removeEventListener('pageshow', syncUser);
 	}, []);
 
 	// 完全私密模式：未登录强制跳转登录页
