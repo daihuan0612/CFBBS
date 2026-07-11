@@ -155,10 +155,10 @@ export default {
 		const jsonResponse = (data: any, status = 200) => {
 			const headers = new Headers(corsHeaders);
 			headers.set('Content-Type', 'application/json');
-			// 仅缓存静态列表类接口（帖子列表、用户），忽略动态配置和鉴权接口
+			// 缓存策略: 帖子列表和用户列表仅浏览器缓存短时间，不进行 CDN 长缓存
 			const cacheablePaths = ['/api/posts', '/api/users'];
 			if (method === 'GET' && status < 400 && cacheablePaths.some(p => url.pathname === p || url.pathname.startsWith(p + '?'))) {
-				headers.set('Cache-Control', 'public, max-age=300, s-maxage=86400');
+				headers.set('Cache-Control', 'public, max-age=30');
 			} else if (method === 'GET' && status < 400) {
 				headers.set('Cache-Control', 'no-cache, must-revalidate');
 			} else {

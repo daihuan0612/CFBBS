@@ -14,8 +14,21 @@ export function SiteHeader({
 	currentUser: User | null;
 	onLogout?: () => void;
 }) {
-	const user = currentUser ?? getUser();
+	const [user, setUser] = React.useState<User | null>(() => currentUser ?? getUser());
 	const [theme, setTheme] = React.useState<Theme>(() => getTheme());
+
+	// 始终从 localStorage 同步最新的用户数据
+	React.useEffect(() => {
+		const sync = () => setUser(currentUser ?? getUser());
+		window.addEventListener('focus', sync);
+		document.addEventListener('visibilitychange', sync);
+		window.addEventListener('pageshow', sync);
+		return () => {
+			window.removeEventListener('focus', sync);
+			document.removeEventListener('visibilitychange', sync);
+			window.removeEventListener('pageshow', sync);
+		};
+	}, [currentUser]);
 
 	React.useEffect(() => {
 		function onThemeChange(e: Event) {
