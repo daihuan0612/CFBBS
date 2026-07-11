@@ -83,7 +83,7 @@ export function AdminPage() {
 			const [s, u, c, settings] = await Promise.all([
 				apiFetch<{ users: number; posts: number; comments: number }>('/admin/stats', { headers: getSecurityHeaders('GET') }),
 				apiFetch<any[]>('/admin/users', { headers: getSecurityHeaders('GET') }),
-				apiFetch<Category[]>('/categories'),
+				apiFetch<Category[]>('/categories', { headers: getSecurityHeaders('GET') }),
 				apiFetch<any>('/admin/settings', { headers: getSecurityHeaders('GET') })
 			]);
 			setStats(s);
