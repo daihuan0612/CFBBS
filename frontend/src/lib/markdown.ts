@@ -52,7 +52,8 @@ export function renderMarkdownToHtml(markdown: string) {
 	const windowLike = window as unknown as Window;
 	const DOMPurify = createDOMPurify(windowLike);
 	return DOMPurify.sanitize(marked.parse(markdown) as string, {
-		ADD_ATTR: ['data-fancybox', 'data-caption', 'referrerpolicy']
+		ADD_ATTR: ['data-fancybox', 'data-caption', 'referrerpolicy', 'controls', 'playsinline', 'autoplay', 'loop', 'muted'],
+		ADD_TAGS: ['video', 'source']
 	});
 }
 

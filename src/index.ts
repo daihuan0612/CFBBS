@@ -2194,21 +2194,11 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 
 				if (hasControlCharacters(title) || hasControlCharacters(content)) return jsonResponse({ error: 'Title or content contains invalid control characters' }, 400);
 
-				// HTML Escape Content (Backend Enforcement)
-				content = content
-					.replace(/&/g, '&amp;')
-					.replace(/</g, '&lt;')
-					.replace(/>/g, '&gt;')
-					.replace(/"/g, '&quot;')
-					.replace(/'/g, '&#039;');
+				// 内容直接存储，前端 DOMPurify 负责安全过滤
+				content = rawContent;
 
-				// Escape Title as well just in case
-				const safeTitle = title
-					.replace(/&/g, '&amp;')
-					.replace(/</g, '&lt;')
-					.replace(/>/g, '&gt;')
-					.replace(/"/g, '&quot;')
-					.replace(/'/g, '&#039;');
+				// Validate Title (simple trim, no HTML escaping needed)
+				const safeTitle = title.trim();
 
 				// Validate Category
 				if (!category_id) return jsonResponse({ error: '请选择分类' }, 400);
