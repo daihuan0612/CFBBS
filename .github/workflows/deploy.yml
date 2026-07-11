@@ -67,6 +67,18 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
 
+      - name: Ensure R2 bucket exists
+        run: |
+          if npx wrangler r2 bucket list | grep -q "cforum-images"; then
+            echo "R2 bucket cforum-images already exists"
+          else
+            echo "Creating R2 bucket cforum-images"
+            npx wrangler r2 bucket create cforum-images
+          fi
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+
       - name: Deploy Worker
         uses: cloudflare/wrangler-action@v3
         with:
