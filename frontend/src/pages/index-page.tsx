@@ -891,7 +891,7 @@ export function IndexPage() {
 							const menuOpen = adminMenuPostId === p.id;
 							const actionLoading = adminActionPostId === p.id;
 							return (
-								<Card key={p.id}>
+								<Card key={p.id} className="shadow-none rounded-none">
 									<CardContent className="py-5">
 										<div className="flex gap-4">
 											{coverUrl ? (
