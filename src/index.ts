@@ -1186,9 +1186,10 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 				const { name } = body;
 				if (!name) return jsonResponse({ error: 'Missing name' }, 400);
 
-				const { success } = await env.cforum_db.prepare('INSERT INTO categories (name) VALUES (?)').bind(name).run();
+				const result = await env.cforum_db.prepare('INSERT OR IGNORE INTO categories (name) VALUES (?)').bind(name).run();
+				if (result.meta.changes === 0) return jsonResponse({ error: '该分类名已存在' }, 409);
 				await security.logAudit(userPayload.id, 'CREATE_CATEGORY', 'category', name, {}, request);
-				return jsonResponse({ success });
+				return jsonResponse({ success: true });
 			} catch (e) {
 				return handleError(e);
 			}
@@ -1205,10 +1206,14 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 				const { name } = body;
 				if (!name) return jsonResponse({ error: 'Missing name' }, 400);
 
-				await env.cforum_db.prepare('UPDATE categories SET name = ? WHERE id = ?').bind(name, id).run();
+				const result = await env.cforum_db.prepare('UPDATE categories SET name = ? WHERE id = ?').bind(name, id).run();
+				if (result.meta.changes === 0) return jsonResponse({ error: '分类不存在' }, 404);
 				await security.logAudit(userPayload.id, 'UPDATE_CATEGORY', 'category', id, { name }, request);
 				return jsonResponse({ success: true });
-			} catch (e) {
+			} catch (e: any) {
+				if (e?.message?.includes('UNIQUE constraint failed: categories.name')) {
+					return jsonResponse({ error: '该分类名已存在' }, 409);
+				}
 				return handleError(e);
 			}
 		}
