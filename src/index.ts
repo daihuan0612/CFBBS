@@ -1928,9 +1928,7 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 				const userPayload = await authenticate(request);
 				const userId = userPayload.id;
 
-				// Toggle like — atomic insert, no race condition.
-				// INSERT OR IGNORE with UNIQUE(post_id, user_id) constraint.
-				try {
+				// Toggle like — atomic INSERT OR IGNORE, no race condition.
 				const inserted = await env.cforum_db.prepare(
 					'INSERT INTO likes (post_id, user_id) VALUES (?, ?)'
 				).bind(postId, userId).run();
@@ -1945,7 +1943,6 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 			} catch (e) {
 				return handleError(e);
 			}
-		}
 
 		// GET /api/posts/:id/like-status
 		if (url.pathname.match(/^\/api\/posts\/\d+\/like-status$/) && method === 'GET') {
