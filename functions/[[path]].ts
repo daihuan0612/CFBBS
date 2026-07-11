@@ -1,6 +1,8 @@
 /**
  * Cloudflare Pages Functions - API Proxy to Worker
  * Routes /api/* requests to Worker, handles static assets and HTML routing
+ * 
+ * __WORKER_URL__ is replaced at build time by GitHub Actions
  */
 
 export const onRequest: PagesFunction = async (context) => {
@@ -26,19 +28,18 @@ export const onRequest: PagesFunction = async (context) => {
 
 	try {
 		const isLocalDev = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
-		let workerUrl = (env.WORKER_URL as string) ||
+
+		// Priority: 1) env var (set via Pages secret), 2) build-time constant, 3) local dev fallback
+		const workerUrl = (env.WORKER_URL as string) ||
+			'__WORKER_URL__' ||
 			(isLocalDev ? 'http://localhost:8787' : null);
 
 		if (!workerUrl) {
-			// Attempt to determine Worker URL from the request itself
-			// Pages site and Worker are deployed together, derive if possible
-			const accountId = (env as any).CLOUDFLARE_ACCOUNT_ID;
-			workerUrl = accountId
-				? `https://cfbbs.${accountId}.workers.dev`
-				: `${url.protocol}//${url.host}`;
+			return Response.json(
+				{ error: 'Worker URL not configured - set WORKER_URL Pages secret or redeploy' },
+				{ status: 502, headers: corsHeaders }
+			);
 		}
-
-		console.log(`↔️ Proxying request to Worker: ${workerUrl}${pathname}`);
 
 		const forwardUrl = new URL(pathname + url.search, workerUrl);
 
@@ -46,6 +47,7 @@ export const onRequest: PagesFunction = async (context) => {
 		forwardHeaders.set('X-Forwarded-Proto', url.protocol.replace(':', ''));
 		forwardHeaders.set('X-Forwarded-Host', url.hostname);
 		forwardHeaders.set('X-Original-URL', url.origin);
+		forwardHeaders.set('Host', new URL(workerUrl).hostname);
 
 		const response = await fetch(new Request(forwardUrl.toString(), {
 			method: request.method,
@@ -63,7 +65,7 @@ export const onRequest: PagesFunction = async (context) => {
 		});
 
 	} catch (error) {
-		console.error('❌ API proxy error:', error);
+		console.error('API proxy error:', error);
 		return Response.json(
 			{
 				error: 'Failed to forward API request',

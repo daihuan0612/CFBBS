@@ -138,6 +138,14 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
 
+      - name: Inject WORKER_URL into Pages Function
+        run: |
+          WORKER_URL="https://cfbbs.$CLOUDFLARE_ACCOUNT_ID.workers.dev"
+          sed -i "s|__WORKER_URL__|$WORKER_URL|g" functions/*.ts
+          echo "Injected WORKER_URL: $WORKER_URL"
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
         with:
