@@ -1928,18 +1928,20 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 				const userPayload = await authenticate(request);
 				const userId = userPayload.id;
 
-				// Toggle like
-				const existing = await env.cforum_db.prepare(
-					'SELECT id FROM likes WHERE post_id = ? AND user_id = ?'
-				).bind(postId, userId).first();
-
-				if (existing) {
-					await env.cforum_db.prepare('DELETE FROM likes WHERE id = ?').bind(existing.id).run();
+				// Toggle like — atomic insert, no race condition.
+				// INSERT OR IGNORE with UNIQUE(post_id, user_id) constraint.
+				try {
+				const inserted = await env.cforum_db.prepare(
+					'INSERT INTO likes (post_id, user_id) VALUES (?, ?)'
+				).bind(postId, userId).run();
+				if (inserted.meta.changes === 0) {
+					// Already liked → unlike
+					await env.cforum_db.prepare(
+						'DELETE FROM likes WHERE post_id = ? AND user_id = ?'
+					).bind(postId, userId).run();
 					return jsonResponse({ liked: false });
-				} else {
-					await env.cforum_db.prepare('INSERT INTO likes (post_id, user_id) VALUES (?, ?)').bind(postId, userId).run();
-					return jsonResponse({ liked: true });
 				}
+				return jsonResponse({ liked: true });
 			} catch (e) {
 				return handleError(e);
 			}
