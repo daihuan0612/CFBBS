@@ -66,11 +66,16 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
 
       - name: Ensure R2 bucket exists
-        continue-on-error: true
         run: |
-          echo "Checking R2 bucket..."
-          npx wrangler r2 bucket list 2>/dev/null | grep -q "cforum-images" && echo "R2 bucket cforum-images already exists" || {
-            npx wrangler r2 bucket create cforum-images 2>/dev/null && echo "R2 bucket cforum-images created" || echo "Warning: R2 not available, skipping..."
+          echo "Checking R2 bucket cforum-images..."
+          npx wrangler r2 bucket list --json 2>/dev/null | node -e "
+            const input = require('fs').readFileSync('/dev/stdin','utf8');
+            const buckets = JSON.parse(input);
+            const found = Array.isArray(buckets) && buckets.some(b => b.name === 'cforum-images');
+            process.exit(found ? 0 : 1);
+          " && echo "R2 bucket exists" || {
+            echo "Creating R2 bucket cforum-images..."
+            npx wrangler r2 bucket create cforum-images && echo "R2 bucket created" || echo "Failed to create bucket"
           }
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
@@ -101,7 +106,7 @@ jobs:
       - name: Deploy Worker
         id: worker_deploy
         run: |
-          DEPLOY_OUTPUT=$(npx wrangler deploy 2>&1)
+          DEPLOY_OUTPUT=$(npx wrangler deploy --env="" 2>&1)
           echo "$DEPLOY_OUTPUT"
           # Extract the workers.dev URL from wrangler output
           WORKER_URL=$(echo "$DEPLOY_OUTPUT" | grep -o 'https://[^ ]*\.workers\.dev' | head -1)
