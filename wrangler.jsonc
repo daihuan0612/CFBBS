@@ -4,7 +4,7 @@
  */
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "cforum",
+	"name": "cfbbs",
 	"main": "src/index.ts",
 	"compatibility_date": "2025-09-27",
 	"compatibility_flags": [
@@ -100,7 +100,7 @@
 	"env": {
 		"production": {
 			"vars": {
-				"WORKER_URL": "https://cforum.adysec.workers.dev"
+				"WORKER_URL": "https://cfbbs.huayan1211.workers.dev"
 			}
 		},
 		"development": {
