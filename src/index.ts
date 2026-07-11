@@ -1566,6 +1566,13 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 				await env.cforum_db.prepare('UPDATE posts SET is_pinned = ? WHERE id = ?').bind(pinned ? 1 : 0, id).run();
 
 				await security.logAudit(userPayload.id, 'ADMIN_PIN_POST', 'post', id, { pinned }, request);
+
+				// Notify post author
+				const post = await env.cforum_db.prepare('SELECT author_id, title FROM posts WHERE id = ?').bind(id).first<{author_id: number; title: string}>();
+				if (post && post.author_id !== userPayload.id) {
+					createNotification(post.author_id, 'post_pinned', '帖子已置顶', `你的帖子「${post.title?.slice(0, 30) || '无标题'}」已被${pinned ? '置顶' : '取消置顶'}。`, userPayload.id);
+				}
+
 				return jsonResponse({ success: true });
 			} catch (e) {
 				return handleError(e);
@@ -2062,6 +2069,14 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 					).bind(postId, userId).run();
 					return jsonResponse({ liked: false });
 				}
+
+				// Notify post author (skip self-like)
+				const post = await env.cforum_db.prepare('SELECT author_id, title FROM posts WHERE id = ?').bind(postId).first<{author_id: number; title: string}>();
+				if (post && post.author_id !== userId) {
+					const liker = await env.cforum_db.prepare('SELECT username FROM users WHERE id = ?').bind(userId).first<{username: string}>();
+					createNotification(post.author_id, 'post_liked', '点赞通知', `${liker?.username || '某用户'} 赞了你的帖子「${post.title?.slice(0, 30) || '无标题'}」`, userId);
+				}
+
 				return jsonResponse({ liked: true });
 			} catch (e) {
 				return handleError(e);

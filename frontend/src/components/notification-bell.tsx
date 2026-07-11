@@ -35,11 +35,6 @@ export function NotificationBell() {
 		} catch { /* ignore */ }
 	}, []);
 
-	React.useEffect(() => {
-		if (!getToken()) return;
-		fetchUnread();
-	}, [fetchUnread]);
-
 	const handleToggle = () => {
 		if (!open) {
 			fetchNotifications();
