@@ -27,9 +27,11 @@ export function PageShell({
 		};
 		window.addEventListener('focus', syncUser);
 		document.addEventListener('visibilitychange', syncUser);
+		window.addEventListener('pageshow', syncUser);
 		return () => {
 			window.removeEventListener('focus', syncUser);
 			document.removeEventListener('visibilitychange', syncUser);
+			window.removeEventListener('pageshow', syncUser);
 		};
 	}, []);
 

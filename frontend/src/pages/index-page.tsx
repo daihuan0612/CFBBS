@@ -337,7 +337,7 @@ export function IndexPage() {
 
 	const fetchCategories = React.useCallback(async () => {
 		try {
-			const list = await apiFetch<Category[]>('/categories');
+			const list = await apiFetch<Category[]>('/categories', { headers: getSecurityHeaders('GET') });
 			setCategories(list);
 		} catch {
 			setCategories([]);

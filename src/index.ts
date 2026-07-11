@@ -2049,12 +2049,9 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 				if (content.length > 3000) return jsonResponse({ error: '评论过长 (最多 3000 字符)' }, 400);
 
 				// Verify Turnstile if enabled
-				const config = await loadConfig(env);
 				const ip = request.headers.get('CF-Connecting-IP') || '127.0.0.1';
-				if (config.turnstile_enabled && config.turnstile_site_key) {
-					if (!turnstileToken || !(await checkTurnstile({ 'cf-turnstile-response': turnstileToken }, ip))) {
-						return jsonResponse({ error: '验证码验证失败' }, 403);
-					}
+				if (!(await checkTurnstile({ 'cf-turnstile-response': turnstileToken }, ip))) {
+					return jsonResponse({ error: '验证码验证失败' }, 403);
 				}
 
 				const result = await env.cforum_db.prepare(
