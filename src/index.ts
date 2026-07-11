@@ -326,7 +326,7 @@ export default {
 			`CREATE INDEX IF NOT EXISTS idx_encrypted_attachments_post ON encrypted_attachments(post_id);`,
 			RATE_LIMITS_DDL,
 			`INSERT OR IGNORE INTO settings (key, value) VALUES ('turnstile_enabled', '0');`,
-			`INSERT OR IGNORE INTO settings (key, value) VALUES ('invite_only', '1');`,
+			`INSERT OR IGNORE INTO settings (key, value) VALUES ('invite_only', '0');`,
 			`INSERT OR IGNORE INTO settings (key, value) VALUES ('encrypted_attachments_enabled', '0');`,
 			`INSERT OR IGNORE INTO settings (key, value) VALUES ('feature_likes', '1');`,
 			`INSERT OR IGNORE INTO settings (key, value) VALUES ('feature_bookmarks', '1');`,
