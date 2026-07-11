@@ -23,17 +23,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Inject WORKER_URL into frontend API client
-        run: |
-          WORKER_URL="https://cfbbs.$CLOUDFLARE_ACCOUNT_ID.workers.dev"
-          sed -i "s|__WORKER_URL__|$WORKER_URL|g" frontend/src/lib/api.ts
-          echo "Injected WORKER_URL into api.ts: $WORKER_URL"
-        env:
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
-
-      - name: Build frontend
-        run: npm run build:frontend
-
+      # ── Infrastructure: D1 and R2 ──
       - name: Ensure D1 database exists
         run: |
           set -euo pipefail
@@ -77,7 +67,7 @@ jobs:
 
       - name: Ensure R2 bucket exists
         run: |
-          if npx wrangler r2 bucket list | grep -q "cforum-images"; then
+          if npx wrangler r2 bucket list 2>/dev/null | grep -q "cforum-images"; then
             echo "R2 bucket cforum-images already exists"
           else
             echo "Creating R2 bucket cforum-images"
@@ -87,12 +77,23 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
 
+      # ── Worker: deploy first so we know the real URL ──
       - name: Deploy Worker
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CF_API_TOKEN }}
-          accountId: ${{ secrets.CF_ACCOUNT_ID }}
-          command: deploy
+        id: worker_deploy
+        run: |
+          DEPLOY_OUTPUT=$(npx wrangler deploy 2>&1)
+          echo "$DEPLOY_OUTPUT"
+          # Extract the workers.dev URL from wrangler output
+          WORKER_URL=$(echo "$DEPLOY_OUTPUT" | grep -o 'https://[^ ]*\.workers\.dev' | head -1)
+          if [ -z "$WORKER_URL" ]; then
+            # Fallback: construct from project name
+            WORKER_URL="https://cfbbs.$CLOUDFLARE_ACCOUNT_ID.workers.dev"
+            echo "Could not extract URL, using fallback: $WORKER_URL"
+          fi
+          echo "worker_url=$WORKER_URL" >> $GITHUB_OUTPUT
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
 
       - name: Upload Worker secrets
         run: |
@@ -124,10 +125,21 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
           BASE_URL: ${{ secrets.BASE_URL }}
 
-      # ── Pages deployment (must create project BEFORE setting Pages secrets) ──
+      # ── Frontend: now inject the REAL Worker URL and build ──
+      - name: Inject WORKER_URL and build frontend
+        run: |
+          WORKER_URL="${{ steps.worker_deploy.outputs.worker_url }}"
+          echo "Injecting WORKER_URL: $WORKER_URL"
+          sed -i "s|__WORKER_URL__|$WORKER_URL|g" frontend/src/lib/api.ts
+          npm run build:frontend
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+
+      # ── Pages: static assets only (no Functions) ──
       - name: Ensure Cloudflare Pages project exists
         run: |
-          if npx wrangler pages project list | grep -q "cfbbs"; then
+          if npx wrangler pages project list 2>/dev/null | grep -q "cfbbs"; then
             echo "Pages project cfbbs already exists"
           else
             echo "Creating Pages project cfbbs"
@@ -147,7 +159,5 @@ jobs:
       - name: Success
         run: |
           echo "部署完成！"
-          echo "Worker API: https://cfbbs.$CLOUDFLARE_ACCOUNT_ID.workers.dev"
+          echo "Worker API: ${{ steps.worker_deploy.outputs.worker_url }}"
           echo "Pages 站点: https://cfbbs.pages.dev"
-        env:
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
