@@ -106,7 +106,7 @@ jobs:
       - name: Deploy Worker
         id: worker_deploy
         run: |
-          DEPLOY_OUTPUT=$(npx wrangler deploy --env="" 2>&1)
+          DEPLOY_OUTPUT=$(npx wrangler deploy 2>&1)
           echo "$DEPLOY_OUTPUT"
           # Extract the workers.dev URL from wrangler output
           WORKER_URL=$(echo "$DEPLOY_OUTPUT" | grep -o 'https://[^ ]*\.workers\.dev' | head -1)
