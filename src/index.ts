@@ -2041,7 +2041,7 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 
 				// Validate Category if provided
 				if (category_id) {
-					const category = await env.cforum_db.prepare('SELECT id, name FROM categories WHERE id = ?').bind(category_id).first<any>();
+					const category = await env.cforum_db.prepare('SELECT id, name FROM categories WHERE id = ?').bind(category_id).first() as { id: number; name: string } | null;
 					if (!category) return jsonResponse({ error: 'Category not found' }, 400);
 					if (category.name === '公告' && userPayload.role !== 'admin') {
 						return jsonResponse({ error: 'Only admins can post in this category' }, 403);
@@ -2258,7 +2258,7 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 
 				// Validate Category
 				if (!category_id) return jsonResponse({ error: '请选择分类' }, 400);
-				const category = await env.cforum_db.prepare('SELECT id, name FROM categories WHERE id = ?').bind(category_id).first<any>();
+				const category = await env.cforum_db.prepare('SELECT id, name FROM categories WHERE id = ?').bind(category_id).first() as { id: number; name: string } | null;
 				if (!category) return jsonResponse({ error: 'Category not found' }, 400);
 				if (category.name === '公告' && userPayload.role !== 'admin') {
 					return jsonResponse({ error: 'Only admins can post in this category' }, 403);
