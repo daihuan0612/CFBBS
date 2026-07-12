@@ -203,7 +203,8 @@ export default {
 			const headers = new Headers();
 			object.writeHttpMetadata(headers);
 			if (object.httpEtag) headers.set('etag', object.httpEtag);
-			headers.set('Cache-Control', 'public, max-age=3600');
+			headers.set('Cache-Control', 'public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800');
+			headers.set('CDN-Cache-Control', 'public, max-age=86400');
 			headers.set('Access-Control-Allow-Origin', getCorsOrigin());
 			return new Response(method === 'HEAD' ? null : object.body, { headers });
 		}
