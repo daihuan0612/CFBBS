@@ -2422,21 +2422,6 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 			} catch (e) { return handleError(e); }
 		}
 
-		// ===== 二次开发: 缓存清除 API =====
-		// POST /api/admin/cache/purge
-		if (url.pathname === '/api/admin/cache/purge' && method === 'POST') {
-			try {
-				const userPayload = await authenticate(request);
-				if (userPayload.role !== 'admin') return jsonResponse({ error: 'Unauthorized' }, 403);
-				// Trigger cache purge
-				return jsonResponse({
-					success: true,
-					purge_id: Date.now().toString(36),
-					message: '缓存清除指令已发出。前端将重新加载数据。'
-				});
-			} catch (e) { return handleError(e); }
-		}
-
 		if (method === 'GET' && !url.pathname.startsWith('/api')) {
 			const pathname = url.pathname;
 			const postMatch = pathname.match(/^\/posts\/(\d+)$/);

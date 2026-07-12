@@ -21,7 +21,6 @@ export function AdminPage() {
 	const [userSaving, setUserSaving] = React.useState(false);
 	const [inviteSaving, setInviteSaving] = React.useState(false);
 	const [refreshing, setRefreshing] = React.useState(false);
-	const [purging, setPurging] = React.useState(false);
 
 	const [stats, setStats] = React.useState<{ users: number; posts: number; comments: number } | null>(null);
 	const [users, setUsers] = React.useState<
@@ -67,8 +66,7 @@ export function AdminPage() {
 	const [resetUserId, setResetUserId] = React.useState<number | null>(null);
 	const [resetLoading, setResetLoading] = React.useState(false);
 
-	// 缓存清除
-	const [cacheResult, setCacheResult] = React.useState('');
+
 
 	React.useEffect(() => {
 		if (!token) window.location.href = '/login';
@@ -281,16 +279,6 @@ export function AdminPage() {
 		} catch (e: any) { setError(String(e?.message || e)); } finally { setResetLoading(false); }
 	}
 
-	// 清除缓存
-	async function purgeCache() {
-		if (!confirm('⚠️ 确定要清除全站缓存吗？这将使所有用户重新加载最新数据。')) return;
-		setPurging(true);
-		try {
-			await apiFetch('/admin/cache/purge', { method: 'POST', headers: getSecurityHeaders('POST'), body: JSON.stringify({}) });
-			setCacheResult('✅ 缓存清除指令已发出！');
-			setTimeout(() => setCacheResult(''), 3000);
-		} catch (e: any) { setError(String(e?.message || e)); } finally { setPurging(false); }
-	}
 
 	return (
 		<PageShell>
@@ -301,17 +289,11 @@ export function AdminPage() {
 						<p className="text-sm text-muted-foreground">站点设置、分类与用户管理</p>
 					</div>
 					<div className="flex items-center gap-2">
-						<Button variant="destructive" size="sm" onClick={purgeCache} disabled={purging}>
-							<AlertTriangle className="h-4 w-4" />
-							清除缓存
-						</Button>
 						<Button variant="outline" onClick={refresh} disabled={refreshing}>
 							<RefreshCw className="h-4 w-4" />
 						</Button>
 					</div>
 				</div>
-				{cacheResult ? <div className="rounded-md border border-emerald-500/50 bg-emerald-500/10 p-3 text-sm text-emerald-700 dark:text-emerald-300">{cacheResult}</div> : null}
-
 				{user?.role !== 'admin' ? (
 					<Card><CardContent className="py-6 text-sm text-muted-foreground">无权限访问</CardContent></Card>
 				) : (
