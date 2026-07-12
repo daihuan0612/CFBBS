@@ -211,7 +211,8 @@
 	line-height: 1.75;
 }
 
-.prose .indent-paragraph {
+/* 首行缩进：marked paragraph 渲染器注入 md-indent-paragraph 类 */
+.prose .md-indent-paragraph {
 	text-indent: 2em;
 }
 

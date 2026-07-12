@@ -37,6 +37,9 @@ function normalizeLang(lang: string) {
 
 let currentR2PublicUrl = '';
 
+// 首行缩进标记：编辑器插入 [INDENT]，marked 不会当空白字符吞掉
+const INDENT_RE = /^\[INDENT\]\s*/;
+
 const renderer = new marked.Renderer();
 renderer.code = (({ text, lang }: { text: string; lang?: string }) => {
 	const normalized = normalizeLang(lang || '');
@@ -64,23 +67,33 @@ renderer.image = (({ href, title, text }: { href: string; title?: string | null;
 	if (!src) return '';
 	return `<a href="${src}" data-fancybox="gallery"${captionAttr}><img src="${src}" alt="${alt}" loading="lazy" referrerpolicy="no-referrer" /></a>`;
 }) as any;
+
+// 拦截 paragraph：检测 [INDENT] 标记，去掉标记，加 class 让 CSS 缩进
+renderer.paragraph = (({ text }: { text: string }) => {
+	if (INDENT_RE.test(text)) {
+		const content = text.replace(INDENT_RE, '');
+		return `<p class="md-indent-paragraph">${content}</p>\n`;
+	}
+	return `<p>${text}</p>\n`;
+}) as any;
+
 marked.use({ renderer, breaks: true, gfm: true });
 
 export function renderMarkdownToHtml(markdown: string, r2PublicUrl?: string) {
 	currentR2PublicUrl = r2PublicUrl || '';
 	const windowLike = window as unknown as Window;
 	const DOMPurify = createDOMPurify(windowLike);
-	// \u3000（全角空格）被 marked.trim() 吃掉
-	// 原理：先用纯 ASCII 标记 @@INDENT@@ 占位 → marked 当普通文本不碰它
-	// → DOMPurify 也不碰它 → 最后在 HTML 中替换为 &nbsp;&nbsp;（浏览器原生渲染空格）
-	const processed = markdown.replace(/^\u3000+/gm, '@@INDENT@@');
+	// 编辑器按钮插入 \u3000\u3000（全角空格）→ 替换为 [INDENT] 标记
+	// → marked paragraph 渲染器检测标记，加 class="md-indent-paragraph"
+	// → CSS .md-indent-paragraph { text-indent: 2em } 实现缩进
+	// 全程不涉及字符层面缩进，不会被任何环节吃掉
+	const processed = markdown.replace(/^\u3000+/gm, '[INDENT]');
 	let html = marked.parse(processed) as string;
 	html = DOMPurify.sanitize(html, {
 		ADD_TAGS: ['video', 'source', 'iframe'],
-		ADD_ATTR: ['allowfullscreen', 'frameborder', 'allow', 'referrerpolicy', 'target', 'rel', 'autoplay', 'muted', 'playsinline', 'preload']
+		ADD_ATTR: ['allowfullscreen', 'frameborder', 'allow', 'referrerpolicy', 'target', 'rel', 'autoplay', 'muted', 'playsinline', 'preload'],
+		ADD_CLASSES: ['md-indent-paragraph']
 	});
-	// 标记 → &nbsp;，浏览器原生渲染为不换行空格
-	html = html.replace(/@@INDENT@@/g, '&nbsp;&nbsp;');
 	return html;
 }
 
