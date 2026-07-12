@@ -622,89 +622,66 @@ export function IndexPage() {
 		<PageShell>
 			<div className="space-y-6">
 				{banner ? <div className="rounded-md border bg-muted/40 p-3 text-sm">{banner}</div> : null}
-				<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+				{/* 桌面端：筛选栏 */}
+				<div className="hidden sm:flex sm:items-center sm:justify-between gap-3">
 					<div>
-							<h1 className="text-2xl font-semibold tracking-tight">侃侃看</h1>
+						<h1 className="text-2xl font-semibold tracking-tight">侃侃看</h1>
 						<p className="text-sm text-muted-foreground">邀请制的纯私密小圈子。</p>
 					</div>
 					<div className="flex items-center gap-2">
-						<label className="text-sm text-muted-foreground" htmlFor="category-filter">
-							分类
-						</label>
-						<select
-							id="category-filter"
-							className="h-9 rounded-md border bg-background px-3 text-sm"
-							value={selectedCategory}
-							onChange={(e) => {
-								setSelectedCategory(e.target.value);
-								setPageOffset(0);
-							}}
-						>
+						<label className="text-sm text-muted-foreground" htmlFor="category-filter">分类</label>
+						<select id="category-filter" className="h-9 rounded-md border bg-background px-3 text-sm" value={selectedCategory} onChange={(e) => { setSelectedCategory(e.target.value); setPageOffset(0); }}>
 							<option value="">全部</option>
 							<option value="uncategorized">未分类</option>
-							{categories.map((c) => (
-								<option key={c.id} value={String(c.id)}>
-									{c.name}
-								</option>
-							))}
+							{categories.map((c) => (<option key={c.id} value={String(c.id)}>{c.name}</option>))}
 						</select>
-						<label className="text-sm text-muted-foreground" htmlFor="sort-filter">
-							排序
-						</label>
-						<select
-							id="sort-filter"
-							className="h-9 rounded-md border bg-background px-3 text-sm"
-							value={sortOption}
-							onChange={(e) => {
-								setSortOption(e.target.value);
-								setPageOffset(0);
-							}}
-						>
+						<label className="text-sm text-muted-foreground" htmlFor="sort-filter">排序</label>
+						<select id="sort-filter" className="h-9 rounded-md border bg-background px-3 text-sm" value={sortOption} onChange={(e) => { setSortOption(e.target.value); setPageOffset(0); }}>
 							<option value="time_desc">最新发布</option>
 							<option value="time_asc">最早发布</option>
 							<option value="likes_desc">最多点赞</option>
 							<option value="comments_desc">最多评论</option>
 							<option value="views_desc">最多观看</option>
 						</select>
-						<form
-							className="flex items-center gap-2"
-							onSubmit={(e) => {
-								e.preventDefault();
-								setPageOffset(0);
-								setSearchQuery(searchInput.trim());
-							}}
-						>
-							<Input
-								value={searchInput}
-								onChange={(e) => setSearchInput(e.target.value)}
-								placeholder="搜索标题/内容"
-								className="h-9 w-full sm:w-48"
-							/>
-							<Button variant="outline" size="sm" type="submit" disabled={loading}>
-								<Search className="h-4 w-4" />
-								<span className="sr-only">搜索</span>
-							</Button>
+						<form className="flex items-center gap-2" onSubmit={(e) => { e.preventDefault(); setPageOffset(0); setSearchQuery(searchInput.trim()); }}>
+							<Input value={searchInput} onChange={(e) => setSearchInput(e.target.value)} placeholder="搜索标题/内容" className="h-9 w-48" />
+							<Button variant="outline" size="sm" type="submit" disabled={loading}><Search className="h-4 w-4" /><span className="sr-only">搜索</span></Button>
 							{searchInput || searchQuery ? (
-								<Button
-									variant="outline"
-									size="sm"
-									type="button"
-									onClick={() => {
-										setSearchInput('');
-										setSearchQuery('');
-										setPageOffset(0);
-									}}
-									disabled={loading}
-								>
-									<X className="h-4 w-4" />
-									<span className="sr-only">清除</span>
-								</Button>
+								<Button variant="outline" size="sm" type="button" onClick={() => { setSearchInput(''); setSearchQuery(''); setPageOffset(0); }} disabled={loading}><X className="h-4 w-4" /><span className="sr-only">清除</span></Button>
 							) : null}
 						</form>
-						<Button variant="outline" size="sm" onClick={() => fetchPosts(0)} disabled={loading}>
-							<RefreshCw className="h-4 w-4" />
-							<span className="sr-only">刷新</span>
-						</Button>
+						<Button variant="outline" size="sm" onClick={() => fetchPosts(0)} disabled={loading}><RefreshCw className="h-4 w-4" /><span className="sr-only">刷新</span></Button>
+					</div>
+				</div>
+				{/* 移动端：筛选栏换行排列 */}
+				<div className="sm:hidden space-y-2">
+					<div>
+						<h1 className="text-2xl font-semibold tracking-tight">侃侃看</h1>
+						<p className="text-sm text-muted-foreground">邀请制的纯私密小圈子。</p>
+					</div>
+					<div className="flex items-center gap-2">
+						<select className="h-9 flex-1 rounded-md border bg-background px-2 text-sm" value={selectedCategory} onChange={(e) => { setSelectedCategory(e.target.value); setPageOffset(0); }}>
+							<option value="">全部分类</option>
+							<option value="uncategorized">未分类</option>
+							{categories.map((c) => (<option key={c.id} value={String(c.id)}>{c.name}</option>))}
+						</select>
+						<select className="h-9 flex-1 rounded-md border bg-background px-2 text-sm" value={sortOption} onChange={(e) => { setSortOption(e.target.value); setPageOffset(0); }}>
+							<option value="time_desc">最新</option>
+							<option value="time_asc">最早</option>
+							<option value="likes_desc">最多赞</option>
+							<option value="comments_desc">最多评</option>
+							<option value="views_desc">最多看</option>
+						</select>
+					</div>
+					<div className="flex items-center gap-2">
+						<form className="flex flex-1 items-center gap-2" onSubmit={(e) => { e.preventDefault(); setPageOffset(0); setSearchQuery(searchInput.trim()); }}>
+							<Input value={searchInput} onChange={(e) => setSearchInput(e.target.value)} placeholder="搜索" className="h-9 flex-1" />
+							<Button variant="outline" size="sm" type="submit" disabled={loading}><Search className="h-4 w-4" /></Button>
+							{searchInput || searchQuery ? (
+								<Button variant="outline" size="sm" type="button" onClick={() => { setSearchInput(''); setSearchQuery(''); setPageOffset(0); }} disabled={loading}><X className="h-4 w-4" /></Button>
+							) : null}
+						</form>
+						<Button variant="outline" size="sm" onClick={() => fetchPosts(0)} disabled={loading}><RefreshCw className="h-4 w-4" /></Button>
 					</div>
 				</div>
 
