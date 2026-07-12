@@ -27,9 +27,10 @@ jobs:
       - name: Ensure D1 database exists
         run: |
           set -euo pipefail
-          # Extract UUID from wrangler d1 list output
+          # Extract UUID for cforum-db specifically
            # Output format: │ uuid │ name │ ... or table with pipes
-           DB_ID=$(npx wrangler d1 list 2>&1 | grep -oP '[\w]{8}-[\w]{4}-[\w]{4}-[\w]{4}-[\w]{12}' | head -1)
+           # Filter by name then extract the first UUID on that line
+           DB_ID=$(npx wrangler d1 list 2>&1 | grep 'cforum-db' | grep -oP '[\w]{8}-[\w]{4}-[\w]{4}-[\w]{4}-[\w]{12}' | head -1)
           if [ -z "$DB_ID" ]; then
             echo "Creating D1 database cforum-db..."
             DB_ID=$(npx wrangler d1 create cforum-db 2>&1 | grep -oP 'database_id = "\K[^"]+')
