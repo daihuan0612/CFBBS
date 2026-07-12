@@ -64,16 +64,6 @@ renderer.image = (({ href, title, text }: { href: string; title?: string | null;
 	if (!src) return '';
 	return `<a href="${src}" data-fancybox="gallery"${captionAttr}><img src="${src}" alt="${alt}" loading="lazy" referrerpolicy="no-referrer" /></a>`;
 }) as any;
-// 段落渲染：检测全角空格 \u3000 开头 → 用 CSS text-indent 实现首行缩进
-renderer.paragraph = (({ text }: { text: string }) => {
-	if (text.startsWith('\u3000\u3000')) {
-		return `<p style="text-indent:2em">${text.replace(/^\u3000+/, '')}</p>`;
-	}
-	if (text.startsWith('\u3000')) {
-		return `<p style="text-indent:1em">${text.replace(/^\u3000+/, '')}</p>`;
-	}
-	return `<p>${text}</p>`;
-}) as any;
 marked.use({ renderer, breaks: true, gfm: true });
 
 export function renderMarkdownToHtml(markdown: string, r2PublicUrl?: string) {
