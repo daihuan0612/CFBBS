@@ -69,14 +69,16 @@ renderer.image = (({ href, title, text }: { href: string; title?: string | null;
 }) as any;
 
 // 拦截 paragraph：检测 [INDENT] 标记，去掉标记，加 class 让 CSS 缩进
-// 普通段落走原生处理，保证图片/链接等行内元素正常渲染
+// marked 16.x: paragraph 接收 { type, text, tokens } 对象，用 marked.parseInline 处理行内元素
 const _origParagraph = renderer.paragraph.bind(renderer);
 renderer.paragraph = (({ text }: { text: string }) => {
 	if (INDENT_RE.test(text)) {
 		const content = text.replace(INDENT_RE, '');
-		return `<p class="md-indent-paragraph">${content}</p>\n`;
+		const inlineHtml = marked.parseInline(content);
+		return `<p class="md-indent-paragraph">${inlineHtml}</p>`;
 	}
-	return _origParagraph({ text });
+	const inlineHtml = marked.parseInline(text);
+	return `<p>${inlineHtml}</p>`;
 }) as any;
 
 marked.use({ renderer, breaks: true, gfm: true });
