@@ -64,18 +64,24 @@ renderer.image = (({ href, title, text }: { href: string; title?: string | null;
 	if (!src) return '';
 	return `<a href="${src}" data-fancybox="gallery"${captionAttr}><img src="${src}" alt="${alt}" loading="lazy" referrerpolicy="no-referrer" /></a>`;
 }) as any;
+// 段落渲染：检测全角空格 \u3000 开头 → 用 CSS text-indent 实现首行缩进
+renderer.paragraph = (({ text }: { text: string }) => {
+	if (text.startsWith('\u3000\u3000')) {
+		return `<p style="text-indent:2em">${text.replace(/^\u3000+/, '')}</p>`;
+	}
+	if (text.startsWith('\u3000')) {
+		return `<p style="text-indent:1em">${text.replace(/^\u3000+/, '')}</p>`;
+	}
+	return `<p>${text}</p>`;
+}) as any;
 marked.use({ renderer, breaks: true, gfm: true });
 
 export function renderMarkdownToHtml(markdown: string, r2PublicUrl?: string) {
 	currentR2PublicUrl = r2PublicUrl || '';
 	const windowLike = window as unknown as Window;
 	const DOMPurify = createDOMPurify(windowLike);
-	// marked 会吞掉段落开头的全角空格（U+3000，Zs类）→ 先用占位符绕过
-	const INDENT_PLACEHOLDER = '\uFFF0INDENT\uFFF0';
-	const html = marked.parse(markdown.replace(/\u3000/g, INDENT_PLACEHOLDER)) as string;
-	// 还原占位符为 &ensp;（半角等宽空格），两个 &ensp; ≈ 两个全角空格宽度
-	const result = html.replace(new RegExp(INDENT_PLACEHOLDER, 'g'), '&ensp;');
-	return DOMPurify.sanitize(result, {
+	const html = marked.parse(markdown) as string;
+	return DOMPurify.sanitize(html, {
 		ADD_TAGS: ['video', 'source', 'iframe'],
 		ADD_ATTR: ['allowfullscreen', 'frameborder', 'allow', 'referrerpolicy', 'target', 'rel', 'autoplay', 'muted', 'playsinline', 'preload']
 	});
