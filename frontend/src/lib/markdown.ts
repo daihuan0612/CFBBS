@@ -66,17 +66,16 @@ renderer.image = (({ href, title, text }: { href: string; title?: string | null;
 }) as any;
 marked.use({ renderer, breaks: true, gfm: true });
 
-const INDENT_MARKER = '<!--indent-->';
+const INDENT_MARKER = '<i hidden></i>';
 
 export function renderMarkdownToHtml(markdown: string, r2PublicUrl?: string) {
 	currentR2PublicUrl = r2PublicUrl || '';
 	const windowLike = window as unknown as Window;
 	const DOMPurify = createDOMPurify(windowLike);
-	// 将行首 \u3000 替换为 HTML 注释标记，marked 透传、DOMPurify 保留，
-	// 绕过 marked 内部 trim() 吃掉全角空格的问题。
+	// 行首 \u3000 → 行内 HTML 元素（不在文档开头被当成块级），绕过 marked trim()
 	const processed = markdown.replace(/^\u3000+/gm, INDENT_MARKER);
 	let html = marked.parse(processed) as string;
-	// <p><!--indent--> → <p class="indent-paragraph">
+	// <p><i hidden></i> → <p class="indent-paragraph">
 	html = html.replace(new RegExp(`<p>${INDENT_MARKER.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'g'), '<p class="indent-paragraph">');
 	return DOMPurify.sanitize(html, {
 		ADD_TAGS: ['video', 'source', 'iframe'],
