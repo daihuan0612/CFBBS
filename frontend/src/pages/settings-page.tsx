@@ -48,7 +48,7 @@ export function SettingsPage() {
 		const err = username ? validateText(username, '用户名') : null;
 		if (err) return setError(err);
 		if (username.length > 20) return setError('用户名过长 (最多 20 字符)');
-		if (avatarUrl && avatarUrl.length > 500) return setError('头像 URL 过长 (最多 500 字符)');
+		if (avatarUrl && avatarUrl.length > 2000) return setError('头像 URL 过长 (最多 2000 字符)');
 
 		setSaving(true);
 		try {

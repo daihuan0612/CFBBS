@@ -765,7 +765,7 @@ export default {
 						// Generate Identicon
 						newAvatarUrl = await generateIdenticon(String(user_id));
 					} else {
-						if (avatar_url.length > 500) return jsonResponse({ error: 'Avatar URL too long (Max 500 chars)' }, 400);
+						if (avatar_url.length > 2000) return jsonResponse({ error: 'Avatar URL too long (Max 2000 chars)' }, 400);
 						if (!/^https?:\/\//i.test(avatar_url) && !avatar_url.startsWith('data:image/svg+xml')) return jsonResponse({ error: 'Invalid Avatar URL (Must start with http:// or https://)' }, 400);
 						newAvatarUrl = avatar_url;
 					}
