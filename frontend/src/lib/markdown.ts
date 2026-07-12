@@ -72,15 +72,15 @@ export function renderMarkdownToHtml(markdown: string, r2PublicUrl?: string) {
 	const DOMPurify = createDOMPurify(windowLike);
 	// \u3000（全角空格）被 marked.trim() 吃掉
 	// 原理：先用纯 ASCII 标记 @@INDENT@@ 占位 → marked 当普通文本不碰它
-	// → DOMPurify 也不碰它 → 最后在 HTML 中用 CSS text-indent 实现缩进
+	// → DOMPurify 也不碰它 → 最后在 HTML 中替换为 &nbsp;&nbsp;（浏览器原生渲染空格）
 	const processed = markdown.replace(/^\u3000+/gm, '@@INDENT@@');
 	let html = marked.parse(processed) as string;
 	html = DOMPurify.sanitize(html, {
 		ADD_TAGS: ['video', 'source', 'iframe'],
 		ADD_ATTR: ['allowfullscreen', 'frameborder', 'allow', 'referrerpolicy', 'target', 'rel', 'autoplay', 'muted', 'playsinline', 'preload']
 	});
-	// 把 <p>@@INDENT@@ 替换为带 CSS 缩进的 <p>
-	html = html.replace(/<p>@@INDENT@@/g, '<p style="text-indent:2em">');
+	// 标记 → &nbsp;，浏览器原生渲染为不换行空格
+	html = html.replace(/@@INDENT@@/g, '&nbsp;&nbsp;');
 	return html;
 }
 
