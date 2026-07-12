@@ -1985,7 +1985,7 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 				}
 
 				// Validate Lengths
-				if (title.length > 30) return jsonResponse({ error: 'Title too long (Max 30 chars)' }, 400);
+				if (title.length > 60) return jsonResponse({ error: 'Title too long (Max 60 chars)' }, 400);
 				if (content.length > 3000) return jsonResponse({ error: 'Content too long (Max 3000 chars)' }, 400);
 				if (hasControlCharacters(title) || hasControlCharacters(content)) return jsonResponse({ error: 'Title or content contains invalid control characters' }, 400);
 
@@ -2190,7 +2190,7 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 				if (hasInvisibleCharacters(title) || hasInvisibleCharacters(content)) return jsonResponse({ error: 'Title or content contains invalid invisible characters' }, 400);
 
 				// Validate Lengths
-				if (title.length > 30) return jsonResponse({ error: 'Title too long (Max 30 chars)' }, 400);
+				if (title.length > 60) return jsonResponse({ error: 'Title too long (Max 60 chars)' }, 400);
 				if (content.length > 3000) return jsonResponse({ error: 'Content too long (Max 3000 chars)' }, 400);
 
 				if (hasControlCharacters(title) || hasControlCharacters(content)) return jsonResponse({ error: 'Title or content contains invalid control characters' }, 400);

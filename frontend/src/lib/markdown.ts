@@ -34,6 +34,11 @@ renderer.code = (({ text, lang }: { text: string; lang?: string }) => {
 renderer.codespan = (({ text }: { text: string }) => {
 	return `<code class="shj-inline">${escapeHtml(text)}</code>`;
 }) as any;
+renderer.link = (({ href, title, text }: { href: string; title?: string | null; text: string }) => {
+	const hrefAttr = escapeHtml(href || '');
+	const titleAttr = title ? ` title="${escapeHtml(title)}"` : '';
+	return `<a href="${hrefAttr}"${titleAttr} target="_blank" rel="noopener noreferrer">${text}</a>`;
+}) as any;
 renderer.image = (({ href, title, text }: { href: string; title?: string | null; text: string }) => {
 	let resolved = href || '';
 	if (resolved && !/^https?:\/\//i.test(resolved) && !resolved.startsWith('/') && !resolved.startsWith('data:')) {
@@ -53,7 +58,7 @@ export function renderMarkdownToHtml(markdown: string) {
 	const DOMPurify = createDOMPurify(windowLike);
 	return DOMPurify.sanitize(marked.parse(markdown) as string, {
 		ADD_TAGS: ['video', 'source', 'iframe'],
-		ADD_ATTR: ['allowfullscreen', 'frameborder', 'allow', 'referrerpolicy']
+		ADD_ATTR: ['allowfullscreen', 'frameborder', 'allow', 'referrerpolicy', 'target', 'rel']
 	});
 }
 

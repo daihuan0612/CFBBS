@@ -78,18 +78,146 @@ export function PostPage() {
 			setEditContent(editContent + insertText);
 		}
 	}
-	const contentRef = React.useRef<HTMLDivElement | null>(null);
-	const [editPreviewOpen, setEditPreviewOpen] = React.useState(true);
-	const editPreviewRef = React.useRef<HTMLDivElement | null>(null);
-	const [adminMenuOpen, setAdminMenuOpen] = React.useState(false);
-	const adminMenuRef = React.useRef<HTMLDivElement | null>(null);
-	const [allCategories, setAllCategories] = React.useState<Category[]>([]);
 
+	function applyEdit(transform: (text: string, start: number, end: number) => { text: string; selectionStart: number; selectionEnd: number }) {
+		const el = editContentRef.current;
+		const start = el ? el.selectionStart : editContent.length;
+		const end = el ? el.selectionEnd : editContent.length;
+		const result = transform(editContent, start, end);
+		setEditContent(result.text);
+		setTimeout(() => {
+			const target = editContentRef.current;
+			if (!target) return;
+			target.selectionStart = result.selectionStart;
+			target.selectionEnd = result.selectionEnd;
+			target.focus();
+		}, 0);
+	}
+
+	function wrapSelection(prefix: string, suffix: string, placeholder: string) {
+		applyEdit((text, start, end) => {
+			const selected = text.slice(start, end) || placeholder;
+			const next = text.slice(0, start) + prefix + selected + suffix + text.slice(end);
+			const selectionStart = start + prefix.length;
+			const selectionEnd = selectionStart + selected.length;
+			return { text: next, selectionStart, selectionEnd };
+		});
+	}
+
+	function wrapBlock(fence: string) {
+		applyEdit((text, start, end) => {
+			const selected = text.slice(start, end);
+			const block = `${fence}\n${selected}\n${fence}`;
+			const next = text.slice(0, start) + block + text.slice(end);
+			const selectionStart = start + fence.length + 1;
+			const selectionEnd = selectionStart + selected.length;
+			return { text: next, selectionStart, selectionEnd };
+		});
+	}
+
+	function transformLines(transform: (line: string, index: number, lines: string[]) => string) {
+		applyEdit((text, start, end) => {
+			const lineStart = text.lastIndexOf('\n', start - 1) + 1;
+			const lineEnd = text.indexOf('\n', end);
+			const endIndex = lineEnd === -1 ? text.length : lineEnd;
+			const segment = text.slice(lineStart, endIndex);
+			const lines = segment.split('\n');
+			const nextSegment = lines.map(transform).join('\n');
+			const next = text.slice(0, lineStart) + nextSegment + text.slice(endIndex);
+			return { text: next, selectionStart: lineStart, selectionEnd: lineStart + nextSegment.length };
+		});
+	}
+
+	function setHeading(level: number) {
+		transformLines((line) => {
+			const cleaned = line.replace(/^\s{0,3}#{1,6}\s+/, '');
+			if (level === 0) return cleaned;
+			return `${'#'.repeat(level)} ${cleaned}`;
+		});
+	}
+
+	function toggleBlockquote() {
+		transformLines((line) => (line.startsWith('> ') ? line.slice(2) : `> ${line}`));
+	}
+
+	function toggleList(ordered: boolean) {
+		transformLines((line, index, lines) => {
+			if (ordered) {
+				if (/^\d+\.\s+/.test(line)) return line.replace(/^\d+\.\s+/, '');
+				return `${index + 1}. ${line}`;
+			}
+			if (/^[-*+]\s+/.test(line)) return line.replace(/^[-*+]\s+/, '');
+			return `- ${line}`;
+		});
+	}
+
+	function indentLines() {
+		transformLines((line) => `  ${line}`);
+	}
+
+	function outdentLines() {
+		transformLines((line) => line.replace(/^(\t| {1,2})/, ''));
+	}
+
+	function insertLink(isImage: boolean) {
+		applyEdit((text, start, end) => {
+			const selected = text.slice(start, end) || (isImage ? 'alt' : 'text');
+			const link = isImage ? `![${selected}](url)` : `[${selected}](url)`;
+			const next = text.slice(0, start) + link + text.slice(end);
+			const urlStart = start + (isImage ? 2 : 1) + selected.length + 2;
+			const urlEnd = urlStart + 3;
+			return { text: next, selectionStart: urlStart, selectionEnd: urlEnd };
+		});
+	}
+
+	function insertTable() {
+		applyEdit((text, start, end) => {
+			const table = `| Header | Header |\n| --- | --- |\n| Cell | Cell |`;
+			const next = text.slice(0, start) + table + text.slice(end);
+			const selectionStart = start + 2;
+			const selectionEnd = selectionStart + 6;
+			return { text: next, selectionStart, selectionEnd };
+		});
+	}
+
+	function insertEditBold() { wrapSelection('**', '**', '加粗文字'); }
+	function insertEditItalic() { wrapSelection('*', '*', '斜体文字'); }
+	function insertEditQuote() {
+		transformLines((line) => `> ${line}`);
+	}
 	function insertEditCenter() {
-		insertIntoEditContent('\n<div align="center">\n\n</div>\n');
+		wrapSelection('<center>\n', '\n</center>', 'text');
 	}
 	function insertEditIndent() {
-		insertIntoEditContent('\n&emsp;&emsp;\n');
+		applyEdit((text, start, end) => {
+			const selected = text.slice(start, end) || '缩进内容';
+			const indented = selected.split('\n').map(l => l ? '  ' + l : l).join('\n');
+			const next = text.slice(0, start) + indented + text.slice(end);
+			return { text: next, selectionStart: start, selectionEnd: start + indented.length };
+		});
+	}
+	function formatEditParagraphIndent() {
+		transformLines((line) => {
+			if (!line.trim()) return line;
+			if (line.startsWith('\u3000\u3000')) return line.replace(/^\u3000\u3000/, '');
+			return `\u3000\u3000${line}`;
+		});
+	}
+	function formatEditNovel() {
+		applyEdit((text, start, end) => {
+			const selected = text.slice(start, end) || text;
+			const lines = selected.split('\n');
+			const formatted = lines.map(line => {
+				const trimmed = line.trim();
+				if (/^(第[一二三四五六七八九十百千万\d]+[章节回部]|Chapter\s*\d+|#[#\s]|引子|楔子|序|尾声|后记)/.test(trimmed)) {
+					return `\n**${trimmed}**\n`;
+				}
+				if (!trimmed) return '';
+				return `\u3000\u3000${trimmed}`;
+			}).join('\n');
+			const next = text.slice(0, start) + formatted + text.slice(end);
+			return { text: next, selectionStart: start, selectionEnd: start + formatted.length };
+		});
 	}
 	function insertEditVideo() {
 		if (!videoUrl.trim()) return;
@@ -116,14 +244,113 @@ export function PostPage() {
 		setCloudDialogOpen(false);
 	}
 	function handleEditKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-		if (e.ctrlKey || e.metaKey) {
-			switch (e.key) {
-				case 'k': e.preventDefault(); setVideoDialogOpen(true); break;
-				case 'b': e.preventDefault(); insertIntoEditContent('****'); break;
-				case 'i': e.preventDefault(); insertIntoEditContent('**'); break;
-			}
+		const isMod = e.ctrlKey || e.metaKey;
+		if (!isMod) return;
+		const key = e.key.toLowerCase();
+		const shift = e.shiftKey;
+		if (!shift && key === 'b') {
+			e.preventDefault();
+			wrapSelection('**', '**', 'text');
+			return;
+		}
+		if (!shift && key === 'i') {
+			e.preventDefault();
+			wrapSelection('*', '*', 'text');
+			return;
+		}
+		if (!shift && key === 'u') {
+			e.preventDefault();
+			wrapSelection('<u>', '</u>', 'text');
+			return;
+		}
+		if (!shift && key === 'k') {
+			e.preventDefault();
+			insertLink(false);
+			return;
+		}
+		if (!shift && key === 't') {
+			e.preventDefault();
+			insertTable();
+			return;
+		}
+		if (shift && key === 'i') {
+			e.preventDefault();
+			insertLink(true);
+			return;
+		}
+		if (!shift && key === '0') {
+			e.preventDefault();
+			setHeading(0);
+			return;
+		}
+		if (!shift && key === '1') {
+			e.preventDefault();
+			setHeading(1);
+			return;
+		}
+		if (!shift && key === '2') {
+			e.preventDefault();
+			setHeading(2);
+			return;
+		}
+		if (!shift && key === '3') {
+			e.preventDefault();
+			setHeading(3);
+			return;
+		}
+		if (shift && key === 'k') {
+			e.preventDefault();
+			wrapBlock('```');
+			return;
+		}
+		if (shift && key === 'm') {
+			e.preventDefault();
+			wrapBlock('$$');
+			return;
+		}
+		if (shift && key === 'q') {
+			e.preventDefault();
+			toggleBlockquote();
+			return;
+		}
+		if (shift && key === '[') {
+			e.preventDefault();
+			toggleList(true);
+			return;
+		}
+		if (shift && key === ']') {
+			e.preventDefault();
+			toggleList(false);
+			return;
+		}
+		if (!shift && key === '[') {
+			e.preventDefault();
+			outdentLines();
+			return;
+		}
+		if (!shift && key === ']') {
+			e.preventDefault();
+			indentLines();
+			return;
+		}
+		if (shift && (e.code === 'Backquote' || key === '`')) {
+			e.preventDefault();
+			wrapSelection('`', '`', 'code');
+			return;
+		}
+		if (e.altKey && shift && e.code === 'Digit5') {
+			e.preventDefault();
+			wrapSelection('~~', '~~', 'text');
+			return;
 		}
 	}
+
+	const contentRef = React.useRef<HTMLDivElement | null>(null);
+	const [editPreviewOpen, setEditPreviewOpen] = React.useState(true);
+	const editPreviewRef = React.useRef<HTMLDivElement | null>(null);
+	const [adminMenuOpen, setAdminMenuOpen] = React.useState(false);
+	const adminMenuRef = React.useRef<HTMLDivElement | null>(null);
+	const [allCategories, setAllCategories] = React.useState<Category[]>([]);
 
 	function getPostIdFromPath() {
 		const params = new URLSearchParams(window.location.search);
@@ -573,19 +800,20 @@ export function PostPage() {
 									<div className="space-y-3">
 										{editError ? <div className="rounded-md border border-destructive/50 bg-destructive/5 p-3 text-sm text-destructive">{editError}</div> : null}
 										<div className="space-y-2">
-											<Input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} maxLength={30} />
+											<Input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} maxLength={60} />
 										</div>
 										<div className="space-y-2">
 											<div className="flex flex-wrap items-center justify-between gap-2">
 												<Label>内容 (支持 Markdown)</Label>
 												<div className="flex flex-wrap items-center gap-1">
-													<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="加粗" onClick={() => insertIntoEditContent('****')}>
+													<span className="text-xs text-muted-foreground mr-1">快捷键：Ctrl+B/I/K</span>
+													<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="加粗 Ctrl+B" onClick={insertEditBold}>
 														<Bold className="h-3.5 w-3.5" />
 													</Button>
-													<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="斜体" onClick={() => insertIntoEditContent('**')}>
+													<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="斜体 Ctrl+I" onClick={insertEditItalic}>
 														<Italic className="h-3.5 w-3.5" />
 													</Button>
-													<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="引用" onClick={() => insertIntoEditContent('\n> ')}>
+													<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="引用" onClick={insertEditQuote}>
 														<Quote className="h-3.5 w-3.5" />
 													</Button>
 													<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="居中" onClick={insertEditCenter}>
@@ -593,6 +821,12 @@ export function PostPage() {
 													</Button>
 													<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="增加缩进" onClick={insertEditIndent}>
 														<Indent className="h-3.5 w-3.5" />
+													</Button>
+													<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="首行缩进（全角空格）" onClick={formatEditParagraphIndent}>
+														<svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12H9"/><path d="M21 6H3"/><path d="M21 18H3"/><polyline points="7 8 3 12 7 16"/></svg>
+													</Button>
+													<Button type="button" variant="ghost" size="sm" className="h-7 px-1.5" title="小说格式化（章标题+首行缩进）" onClick={formatEditNovel}>
+														<span className="text-[10px] font-medium">Aa</span>
 													</Button>
 													<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="插入视频" onClick={() => setVideoDialogOpen(true)}>
 														<Video className="h-3.5 w-3.5" />
@@ -606,6 +840,7 @@ export function PostPage() {
 													</Button>
 												</div>
 											</div>
+											<div className="text-xs text-muted-foreground">Ctrl+T 表格，Ctrl+Shift+M 公式，Ctrl+Shift+Q 引用，Alt+Shift+5 删除线</div>
 											<Textarea ref={editContentRef} value={editContent} onChange={(e) => setEditContent(e.target.value)} onKeyDown={handleEditKeyDown} rows={10} />
 										</div>
                         {/* upload image when editing */}

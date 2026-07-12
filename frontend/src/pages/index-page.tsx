@@ -548,7 +548,7 @@ export function IndexPage() {
 		if (titleErr) return setCreateError(titleErr);
 		const contentErr = validateText(newContent, '内容');
 		if (contentErr) return setCreateError(contentErr);
-		if (newTitle.length > 30) return setCreateError('标题过长 (最多 30 字符)');
+		if (newTitle.length > 60) return setCreateError('标题过长 (最多 60 字符)');
 		if (newContent.length > 3000) return setCreateError('内容过长 (最多 3000 字符)');
 		if (turnstileActive && !turnstileToken) return setCreateError('请完成验证码验证');
 
@@ -717,7 +717,7 @@ export function IndexPage() {
 								<div className="space-y-4">
 									<div className="space-y-2">
 										<Label htmlFor="new-title">标题</Label>
-										<Input id="new-title" maxLength={30} value={newTitle} onChange={(e) => setNewTitle(e.target.value)} required />
+										<Input id="new-title" maxLength={60} value={newTitle} onChange={(e) => setNewTitle(e.target.value)} required />
 									</div>
 									<div className="space-y-2">
 										<Label htmlFor="new-category">分类</Label>
