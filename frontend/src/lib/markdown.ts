@@ -70,11 +70,12 @@ export function renderMarkdownToHtml(markdown: string, r2PublicUrl?: string) {
 	currentR2PublicUrl = r2PublicUrl || '';
 	const windowLike = window as unknown as Window;
 	const DOMPurify = createDOMPurify(windowLike);
-	// marked 会把 U+3000（全角空格，Zs类）等第一段开头空白吃掉
-	// 换成 U+00A0（不换行空格，No类）既不被 CommonMark 当空白，CSS 也不折叠
-	const processed = markdown.replace(/\u3000/g, '\u00A0');
-	let html = marked.parse(processed) as string;
-	return DOMPurify.sanitize(html, {
+	// marked 会吞掉段落开头的全角空格（U+3000，Zs类）→ 先用占位符绕过
+	const INDENT_PLACEHOLDER = '\uFFF0INDENT\uFFF0';
+	const html = marked.parse(markdown.replace(/\u3000/g, INDENT_PLACEHOLDER)) as string;
+	// 还原占位符为 &ensp;（半角等宽空格），两个 &ensp; ≈ 两个全角空格宽度
+	const result = html.replace(new RegExp(INDENT_PLACEHOLDER, 'g'), '&ensp;');
+	return DOMPurify.sanitize(result, {
 		ADD_TAGS: ['video', 'source', 'iframe'],
 		ADD_ATTR: ['allowfullscreen', 'frameborder', 'allow', 'referrerpolicy', 'target', 'rel', 'autoplay', 'muted', 'playsinline', 'preload']
 	});
