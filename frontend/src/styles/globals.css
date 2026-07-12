@@ -211,6 +211,10 @@
 	line-height: 1.75;
 }
 
+.prose .indent-paragraph {
+	text-indent: 2em;
+}
+
 .prose a {
 	color: #3b82f6;
 	text-decoration: underline;
