@@ -52,7 +52,8 @@ export function renderMarkdownToHtml(markdown: string) {
 	const windowLike = window as unknown as Window;
 	const DOMPurify = createDOMPurify(windowLike);
 	return DOMPurify.sanitize(marked.parse(markdown) as string, {
-		ADD_TAGS: ['video', 'source']
+		ADD_TAGS: ['video', 'source', 'iframe'],
+		ADD_ATTR: ['allowfullscreen', 'frameborder', 'allow', 'referrerpolicy']
 	});
 }
 

@@ -286,6 +286,16 @@
 	border-radius: 0.5rem;
 }
 
+.prose video,
+.prose iframe,
+.prose .video-wrapper {
+	max-width: 100% !important;
+	height: auto;
+	margin-top: 1em;
+	margin-bottom: 1em;
+	border-radius: 0.5rem;
+}
+
 .prose > :first-child {
 	margin-top: 0;
 }
