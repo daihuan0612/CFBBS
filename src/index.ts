@@ -1242,7 +1242,7 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 				} catch { /* not logged in or not admin */ }
 
 				const cacheKey = 'categories_' + (isAdmin ? 'admin' : 'user');
-				const results = await getFromCache(cacheKey, 3_600_000, () =>
+				const { results } = await getFromCache(cacheKey, 3_600_000, () =>
 					env.cforum_db.prepare(
 						isAdmin
 							? 'SELECT * FROM categories ORDER BY created_at ASC'
