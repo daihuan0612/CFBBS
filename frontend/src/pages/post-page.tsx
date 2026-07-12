@@ -895,7 +895,7 @@ export function PostPage() {
 												<div
 													ref={editPreviewRef}
 													className="prose max-w-none break-words [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:my-1"
-													dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(editContent || '') }}
+													dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(editContent || '', config?.r2_public_url) }}
 												/>
 											</div>
 										) : null}
@@ -907,7 +907,7 @@ export function PostPage() {
 									<div
 										className="w-full prose !max-w-none break-words [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:my-1"
 										ref={contentRef}
-										dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(post.content || '') }}
+										dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(post.content || '', config?.r2_public_url) }}
 									/>
 								)}
 							</CardContent>

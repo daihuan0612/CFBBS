@@ -522,6 +522,7 @@ export default {
 					turnstile_site_key: siteKey,
 					user_count: userCount || 0,
 					jwt_secret_configured: !!env.JWT_SECRET && String(env.JWT_SECRET).length >= 32,
+					r2_public_url: (env as any).R2_PUBLIC_BASE_URL || '',
 					...featureFlags
 				});
 			} catch (e) {

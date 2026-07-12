@@ -2,6 +2,15 @@ import { marked } from 'marked';
 import createDOMPurify from 'dompurify';
 import { highlightElement } from '@speed-highlight/core';
 
+/**
+ * 替换 workers.dev 域名为自定义域名（解决国内无法访问问题）
+ */
+function resolveR2Url(url: string, r2PublicUrl?: string): string {
+	if (!r2PublicUrl) return url;
+	// 匹配任何 *.workers.dev/r2/ 路径
+	return url.replace(/https?:\/\/[^\/]+\.workers\.dev\/r2\//g, r2PublicUrl.replace(/\/+$/, '') + '/');
+}
+
 function escapeHtml(text: string) {
 	return text
 		.replace(/&/g, '&amp;')
@@ -26,6 +35,8 @@ function normalizeLang(lang: string) {
 	return first;
 }
 
+let currentR2PublicUrl = '';
+
 const renderer = new marked.Renderer();
 renderer.code = (({ text, lang }: { text: string; lang?: string }) => {
 	const normalized = normalizeLang(lang || '');
@@ -44,6 +55,8 @@ renderer.image = (({ href, title, text }: { href: string; title?: string | null;
 	if (resolved && !/^https?:\/\//i.test(resolved) && !resolved.startsWith('/') && !resolved.startsWith('data:')) {
 		resolved = `/r2/${resolved.replace(/^\/+/, '')}`;
 	}
+	// 替换 workers.dev 域名为自定义域名
+	resolved = resolveR2Url(resolved, currentR2PublicUrl);
 	const src = escapeHtml(resolved);
 	const alt = escapeHtml(text || '');
 	const caption = escapeHtml(title || text || '');
@@ -53,7 +66,8 @@ renderer.image = (({ href, title, text }: { href: string; title?: string | null;
 }) as any;
 marked.use({ renderer, breaks: true, gfm: true });
 
-export function renderMarkdownToHtml(markdown: string) {
+export function renderMarkdownToHtml(markdown: string, r2PublicUrl?: string) {
+	currentR2PublicUrl = r2PublicUrl || '';
 	const windowLike = window as unknown as Window;
 	const DOMPurify = createDOMPurify(windowLike);
 	return DOMPurify.sanitize(marked.parse(markdown) as string, {
@@ -61,6 +75,8 @@ export function renderMarkdownToHtml(markdown: string) {
 		ADD_ATTR: ['allowfullscreen', 'frameborder', 'allow', 'referrerpolicy', 'target', 'rel', 'autoplay', 'muted', 'playsinline', 'preload']
 	});
 }
+
+export { resolveR2Url };
 
 /**
  * 初始化视频封面：静音播放 0.1 秒加载第一帧画面，然后暂停。

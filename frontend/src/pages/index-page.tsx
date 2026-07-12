@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { useConfig } from '@/hooks/use-config';
 import { apiFetch, API_BASE, formatDate, getSecurityHeaders, type Category, type Post } from '@/lib/api';
 import { getToken, getUser } from '@/lib/auth';
-import { attachFancybox, highlightCodeBlocks, initVideoPosters, renderMarkdownToHtml } from '@/lib/markdown';
+import { attachFancybox, highlightCodeBlocks, initVideoPosters, renderMarkdownToHtml, resolveR2Url } from '@/lib/markdown';
 import { validateText } from '@/lib/validators';
 
 export function IndexPage() {
@@ -604,6 +604,8 @@ export function IndexPage() {
 		if (!/^https?:\/\//i.test(url) && !url.startsWith('/') && !url.startsWith('data:')) {
 			url = `/r2/${url.replace(/^\/+/, '')}`;
 		}
+		// 替换 workers.dev 域名为自定义域名
+		url = resolveR2Url(url, config?.r2_public_url);
 		return url;
 	}
 
@@ -804,7 +806,7 @@ export function IndexPage() {
 											<div
 												ref={previewRef}
 												className="prose max-w-none break-words [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:my-1"
-												dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(newContent || '') }}
+												dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(newContent || '', config?.r2_public_url) }}
 											/>
 										</div>
 									) : null}

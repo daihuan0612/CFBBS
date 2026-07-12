@@ -5,6 +5,7 @@ export type ForumConfig = {
 	turnstile_site_key: string;
 	user_count?: number;
 	jwt_secret_configured?: boolean;
+	r2_public_url?: string;
 	// 二次开发新增
 	invite_only?: boolean;
 	encrypted_attachments_enabled?: boolean;
