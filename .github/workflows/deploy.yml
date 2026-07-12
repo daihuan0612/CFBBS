@@ -28,7 +28,7 @@ jobs:
         run: |
           set -euo pipefail
           # Try to find existing database UUID
-          DB_ID=$(npx wrangler d1 list 2>&1 | grep "cforum-db" | awk '{print $1}')
+          DB_ID=$(npx wrangler d1 list 2>&1 | grep "cforum-db" | awk '{print $2}')
           if [ -z "$DB_ID" ]; then
             echo "Creating D1 database cforum-db..."
             DB_ID=$(npx wrangler d1 create cforum-db 2>&1 | grep -oP 'database_id = "\K[^"]+')
