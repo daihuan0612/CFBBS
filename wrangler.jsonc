@@ -17,7 +17,7 @@
 		{
 			"binding": "cforum_db",
 			"database_name": "cforum-db",
-			"database_id": "851270eb-80b8-4e31-825e-645d444898d6",
+			"database_id": "c5b0855f-3025-4e0a-b08e-ca02f725757b",
 			"remote": true,
 			"migrations_dir": "migrations"
 		}
@@ -102,7 +102,7 @@
 	"env": {
 		"production": {
 			"vars": {
-				"WORKER_URL": "https://cfbbs.huayan1211.workers.dev"
+				"WORKER_URL": "https://cfbbs.daihuan0612.workers.dev"
 			}
 		},
 		"development": {
