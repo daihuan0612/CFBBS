@@ -95,20 +95,4 @@
 	 */
 	// "services": [  {   "binding": "MY_SERVICE",   "service": "my-service"  } ]
 
-	/**
-	 * Cloudflare Pages + Worker 混合配置
-	 * D1 数据库和 R2 存储已配置，Pages Functions 作为 API 网关
-	 */
-	"env": {
-		"production": {
-			"vars": {
-				"WORKER_URL": "https://cfbbs.daihuan0612.workers.dev"
-			}
-		},
-		"development": {
-			"vars": {
-				"WORKER_URL": "http://localhost:8787"
-			}
-		}
-	}
 }
