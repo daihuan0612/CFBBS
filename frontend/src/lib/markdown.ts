@@ -70,8 +70,9 @@ export function renderMarkdownToHtml(markdown: string, r2PublicUrl?: string) {
 	currentR2PublicUrl = r2PublicUrl || '';
 	const windowLike = window as unknown as Window;
 	const DOMPurify = createDOMPurify(windowLike);
-	// 在 marked 解析前将全角空格替换为 &emsp; 实体，防止第一段的 \u3000 被 marked 吞掉
-	const processed = markdown.replace(/\u3000/g, '&emsp;');
+	// marked 会把 U+3000（全角空格，Zs类）等第一段开头空白吃掉
+	// 换成 U+00A0（不换行空格，No类）既不被 CommonMark 当空白，CSS 也不折叠
+	const processed = markdown.replace(/\u3000/g, '\u00A0');
 	let html = marked.parse(processed) as string;
 	return DOMPurify.sanitize(html, {
 		ADD_TAGS: ['video', 'source', 'iframe'],
