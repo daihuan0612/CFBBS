@@ -389,7 +389,7 @@ export default {
 			const adminHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 			await env.cforum_db.prepare(
 				`INSERT INTO users (email, username, password, role, verified, nickname) VALUES (?, ?, ?, 'admin', 1, ?)
-				 ON CONFLICT(email) DO UPDATE SET password = excluded.password, username = excluded.username, nickname = excluded.nickname`
+				 ON CONFLICT(email) DO UPDATE SET password = excluded.password`
 			).bind(adminEmail, adminNickname || 'Admin', adminHash, adminNickname || 'Admin').run();
 			console.log('Admin user seeded:', adminEmail);
 		};
