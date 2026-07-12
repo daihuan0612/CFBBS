@@ -182,6 +182,7 @@ export default {
 			object.writeHttpMetadata(headers);
 			if (object.httpEtag) headers.set('etag', object.httpEtag);
 			headers.set('Cache-Control', 'public, max-age=3600');
+			headers.set('Access-Control-Allow-Origin', '*');
 			return new Response(method === 'HEAD' ? null : object.body, { headers });
 		}
 
