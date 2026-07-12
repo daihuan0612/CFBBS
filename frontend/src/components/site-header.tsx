@@ -16,6 +16,18 @@ export function SiteHeader({
 }) {
 	const [user, setUser] = React.useState<User | null>(() => currentUser ?? getUser());
 	const [theme, setTheme] = React.useState<Theme>(() => getTheme());
+	const [menuOpen, setMenuOpen] = React.useState(false);
+	const menuRef = React.useRef<HTMLDivElement>(null);
+
+	// 点击外部关闭菜单
+	React.useEffect(() => {
+		if (!menuOpen) return;
+		function handleClick(e: MouseEvent) {
+			if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+		}
+		document.addEventListener('mousedown', handleClick);
+		return () => document.removeEventListener('mousedown', handleClick);
+	}, [menuOpen]);
 
 	// 页面从缓存恢复时同步最新的用户数据
 	React.useEffect(() => {
@@ -51,68 +63,54 @@ export function SiteHeader({
 					{user ? (
 						<>
 							<NotificationBell />
-							<span className="inline-flex items-center gap-1 text-sm text-muted-foreground sm:gap-2">
+							{/* 桌面端：显示用户名、管理后台、设置、退出 */}
+							<span className="hidden sm:inline-flex items-center gap-1 text-sm text-muted-foreground">
 								{user.avatar_url ? (
-									<img
-										src={user.avatar_url}
-										alt=""
-										className="h-7 w-7 shrink-0 rounded-full object-cover"
-										loading="lazy"
-										referrerPolicy="no-referrer"
-									/>
+									<img src={user.avatar_url} alt="" className="h-7 w-7 shrink-0 rounded-full object-cover" loading="lazy" referrerPolicy="no-referrer" />
 								) : (
-									<span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] text-muted-foreground">
-										<UserIcon className="h-4 w-4" />
-									</span>
+									<span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] text-muted-foreground"><UserIcon className="h-4 w-4" /></span>
 								)}
-								<span className="hidden sm:inline">
-									欢迎，<span className="text-foreground">{user.username}</span>
-								</span>
+								<span>欢迎，<span className="text-foreground">{user.username}</span></span>
 								{user.role === 'admin' ? (
-									<span className="inline-flex shrink-0 items-center gap-1 rounded border border-indigo-500/30 bg-indigo-500/10 px-2 py-0.5 text-[10px] font-medium text-indigo-700 dark:text-indigo-300">
-										<Shield className="h-3 w-3" />
-									</span>
+									<span className="inline-flex shrink-0 items-center gap-1 rounded border border-indigo-500/30 bg-indigo-500/10 px-2 py-0.5 text-[10px] font-medium text-indigo-700 dark:text-indigo-300"><Shield className="h-3 w-3" /></span>
 								) : null}
 							</span>
-							{user.role === 'admin' ? (
-								<Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
-									<a href="/admin">
-										<Shield className="h-4 w-4" />
-									</a>
+							<div className="hidden sm:flex items-center gap-1">
+								{user.role === 'admin' ? (
+									<Button asChild variant="ghost" size="sm"><a href="/admin"><Shield className="h-4 w-4" /></a></Button>
+								) : null}
+								<Button asChild variant="ghost" size="sm"><a href="/settings"><Settings className="h-4 w-4" /></a></Button>
+								<Separator orientation="vertical" className="h-6" />
+								<Button variant="destructive" size="sm" onClick={() => { logout(); onLogout?.(); window.location.href = '/'; }}>
+									<LogOut className="h-4 w-4" />
 								</Button>
-							) : null}
-							<Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
-								<a href="/settings">
-									<Settings className="h-4 w-4" />
-								</a>
-							</Button>
-							<Separator orientation="vertical" className="hidden h-6 sm:block" />
-							<Button
-								variant="destructive"
-								size="sm"
-								className="hidden sm:inline-flex"
-								onClick={() => {
-									logout();
-									onLogout?.();
-									window.location.href = '/';
-								}}
-							>
-								<LogOut className="h-4 w-4" />
-							</Button>
-							{/* 移动端退出按钮（仅图标） */}
-							<Button
-								variant="destructive"
-								size="sm"
-								className="inline-flex sm:hidden"
-								onClick={() => {
-									logout();
-									onLogout?.();
-									window.location.href = '/';
-								}}
-							>
-								<LogOut className="h-4 w-4" />
-								<span className="sr-only">退出</span>
-							</Button>
+							</div>
+							{/* 移动端：头像下拉菜单 */}
+							<div className="relative sm:hidden" ref={menuRef}>
+								<Button variant="ghost" size="sm" className="p-1" onClick={() => setMenuOpen(!menuOpen)}>
+									{user.avatar_url ? (
+										<img src={user.avatar_url} alt="" className="h-7 w-7 rounded-full object-cover" loading="lazy" referrerPolicy="no-referrer" />
+									) : (
+										<span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-muted text-muted-foreground"><UserIcon className="h-4 w-4" /></span>
+									)}
+								</Button>
+								{menuOpen ? (
+									<div className="absolute right-0 top-full mt-1 w-40 rounded-md border bg-popover p-1 shadow-md z-50">
+										{user.role === 'admin' ? (
+											<a href="/admin" className="flex items-center gap-2 rounded-sm px-3 py-2 text-sm hover:bg-muted" onClick={() => setMenuOpen(false)}>
+												<Shield className="h-4 w-4" /> 管理后台
+											</a>
+										) : null}
+										<a href="/settings" className="flex items-center gap-2 rounded-sm px-3 py-2 text-sm hover:bg-muted" onClick={() => setMenuOpen(false)}>
+											<Settings className="h-4 w-4" /> 设置
+										</a>
+										<div className="my-1 h-px bg-border" />
+										<button className="flex w-full items-center gap-2 rounded-sm px-3 py-2 text-sm text-destructive hover:bg-destructive/10" onClick={() => { logout(); onLogout?.(); window.location.href = '/'; }}>
+											<LogOut className="h-4 w-4" /> 退出登录
+										</button>
+									</div>
+								) : null}
+							</div>
 						</>
 					) : (
 						<>
