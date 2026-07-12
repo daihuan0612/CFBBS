@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Bold, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Eye, EyeOff, Italic, Heart, MessageCircle, MoreVertical, Pin, Quote, RefreshCw, Search, Shield, Trash2, User, X, AlignCenter, Indent, Video, Cloud } from 'lucide-react';
+import { Bold, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Eye, EyeOff, Image, Italic, Heart, MessageCircle, MoreVertical, Pin, Quote, RefreshCw, Search, Shield, Trash2, User, X, AlignCenter, Indent, Video, Cloud } from 'lucide-react';
 
 import { TurnstileWidget } from '@/components/turnstile';
 import { PageShell } from '@/components/page-shell';
@@ -48,6 +48,8 @@ export function IndexPage() {
 	const [cloudDialogOpen, setCloudDialogOpen] = React.useState(false);
 	const [cloudUrl, setCloudUrl] = React.useState('');
 	const [cloudName, setCloudName] = React.useState('');
+	const [imageDialogOpen, setImageDialogOpen] = React.useState(false);
+	const [imageUrl, setImageUrl] = React.useState('');
 
 	// insert text at current cursor position in the textarea (or append)
 	function insertIntoContent(insertText: string) {
@@ -251,6 +253,13 @@ export function IndexPage() {
 		const mime = ext === 'webm' ? 'video/webm' : ext === 'ogg' ? 'video/ogg' : 'video/mp4';
 		const embed = `\n<div align="center">\n<video controls playsinline muted width="100%"><source src="${trimmed}" type="${mime}"></video>\n</div>\n`;
 		insertIntoContent(embed);
+	}
+
+	// 编辑器增强: 插入图片链接
+	function insertImageMarkdown(url: string) {
+		const trimmed = url.trim();
+		if (!trimmed) return;
+		insertIntoContent(`\n![图片](${trimmed})\n`);
 	}
 
 	// 编辑器增强: 网盘链接
@@ -776,6 +785,10 @@ export function IndexPage() {
 										<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="插入视频" onClick={() => setVideoDialogOpen(true)}>
 											<Video className="h-3.5 w-3.5" />
 										</Button>
+										{/* 图片链接 */}
+										<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="插入图片链接" onClick={() => setImageDialogOpen(true)}>
+											<Image className="h-3.5 w-3.5" />
+										</Button>
 										{/* 编辑器增强: 网盘 */}
 										<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="插入网盘链接" onClick={() => setCloudDialogOpen(true)}>
 											<Cloud className="h-3.5 w-3.5" />
@@ -909,6 +922,23 @@ export function IndexPage() {
 						<DialogFooter>
 							<Button variant="outline" onClick={() => { setVideoDialogOpen(false); setVideoUrl(''); }}>取消</Button>
 							<Button onClick={() => { if (videoUrl) { insertVideoMarkdown(videoUrl); setVideoUrl(''); setVideoDialogOpen(false); } }} disabled={!videoUrl}>插入</Button>
+						</DialogFooter>
+					</DialogContent>
+				</Dialog>
+
+				{/* 编辑器增强: 插入图片链接弹窗 */}
+				<Dialog open={imageDialogOpen} onOpenChange={setImageDialogOpen}>
+					<DialogContent className="sm:max-w-md">
+						<DialogHeader><DialogTitle>插入图片链接</DialogTitle></DialogHeader>
+						<div className="space-y-4 py-2">
+							<div className="space-y-2">
+								<Label htmlFor="image-url">图片链接</Label>
+								<Input id="image-url" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://example.com/image.jpg" />
+							</div>
+						</div>
+						<DialogFooter>
+							<Button variant="outline" onClick={() => { setImageDialogOpen(false); setImageUrl(''); }}>取消</Button>
+							<Button onClick={() => { if (imageUrl) { insertImageMarkdown(imageUrl); setImageUrl(''); setImageDialogOpen(false); } }} disabled={!imageUrl}>插入</Button>
 						</DialogFooter>
 					</DialogContent>
 				</Dialog>

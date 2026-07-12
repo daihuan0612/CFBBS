@@ -1948,6 +1948,7 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 
 				if (!post) return jsonResponse({ error: 'Post not found' }, 404);
 
+				// 更新浏览量
 				try {
 					await env.cforum_db.prepare('UPDATE posts SET view_count = COALESCE(view_count, 0) + 1 WHERE id = ?').bind(postId).run();
 					(post as any).view_count = Number((post as any).view_count || 0) + 1;
@@ -1960,7 +1961,32 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 					(post as any).liked = !!like;
 				}
 
-				return jsonResponse(post);
+				// 条件缓存：If-Modified-Since 检查（带 user_id 时不走 304，保证 like 状态实时）
+				const postUpdated = (post as any).updated_at as string | undefined;
+				if (postUpdated && !userId) {
+					const ifModifiedSince = request.headers.get('If-Modified-Since');
+					if (ifModifiedSince) {
+						const modSince = new Date(ifModifiedSince).getTime();
+						const postTime = new Date(postUpdated).getTime();
+						if (!isNaN(modSince) && !isNaN(postTime) && postTime <= modSince) {
+							return new Response(null, {
+								status: 304,
+								headers: {
+									'Cache-Control': 'no-cache',
+									'Last-Modified': new Date(postTime).toUTCString(),
+									'Access-Control-Allow-Origin': getCorsOrigin(),
+								}
+							});
+						}
+					}
+				}
+
+				// 设置 Last-Modified 响应头
+				const resp = jsonResponse(post);
+				if (postUpdated) {
+					resp.headers.set('Last-Modified', new Date(postUpdated).toUTCString());
+				}
+				return resp;
 			} catch (e) {
 				return handleError(e);
 			}

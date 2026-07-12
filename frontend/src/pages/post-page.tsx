@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { AlignCenter, ArrowLeft, Bold, Cloud, Eye, EyeOff, Heart, Indent, Italic, Lock, ExternalLink, MoreVertical, Pin, Pencil, Quote, Reply, Shield, Trash2, User, Video, X } from 'lucide-react';
+import { AlignCenter, ArrowLeft, Bold, Cloud, Eye, EyeOff, Heart, Image, Indent, Italic, Lock, ExternalLink, MoreVertical, Pin, Pencil, Quote, Reply, Shield, Trash2, User, Video, X } from 'lucide-react';
 
 import { TurnstileWidget } from '@/components/turnstile';
 import { PageShell } from '@/components/page-shell';
@@ -60,6 +60,8 @@ export function PostPage() {
 	const [cloudDialogOpen, setCloudDialogOpen] = React.useState(false);
 	const [cloudLinkUrl, setCloudLinkUrl] = React.useState('');
 	const [cloudLinkName, setCloudLinkName] = React.useState('');
+	const [imageDialogOpen, setImageDialogOpen] = React.useState(false);
+	const [imageUrl, setImageUrl] = React.useState('');
 
 	function insertIntoEditContent(insertText: string) {
 		if (editContentRef.current) {
@@ -235,6 +237,13 @@ export function PostPage() {
 		}
 		setVideoUrl('');
 		setVideoDialogOpen(false);
+	}
+	function insertEditImageMarkdown() {
+		const trimmed = imageUrl.trim();
+		if (!trimmed) return;
+		insertIntoEditContent(`\n![图片](${trimmed})\n`);
+		setImageUrl('');
+		setImageDialogOpen(false);
 	}
 	function insertEditCloudLink() {
 		if (!cloudLinkUrl.trim()) return;
@@ -833,6 +842,9 @@ export function PostPage() {
 													<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="插入视频" onClick={() => setVideoDialogOpen(true)}>
 														<Video className="h-3.5 w-3.5" />
 													</Button>
+													<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="插入图片链接" onClick={() => setImageDialogOpen(true)}>
+														<Image className="h-3.5 w-3.5" />
+													</Button>
 													<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="插入网盘链接" onClick={() => setCloudDialogOpen(true)}>
 														<Cloud className="h-3.5 w-3.5" />
 													</Button>
@@ -953,6 +965,22 @@ export function PostPage() {
 								<DialogFooter>
 									<Button variant="outline" onClick={() => setVideoDialogOpen(false)}>取消</Button>
 									<Button onClick={insertEditVideo} disabled={!videoUrl.trim()}>插入</Button>
+								</DialogFooter>
+							</DialogContent>
+						</Dialog>
+
+						<Dialog open={imageDialogOpen} onOpenChange={setImageDialogOpen}>
+							<DialogContent className="sm:max-w-md">
+								<DialogHeader><DialogTitle>插入图片链接</DialogTitle></DialogHeader>
+								<div className="space-y-4 py-2">
+									<div className="space-y-2">
+										<Label htmlFor="edit-image-url">图片链接</Label>
+										<Input id="edit-image-url" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://example.com/image.jpg" />
+									</div>
+								</div>
+								<DialogFooter>
+									<Button variant="outline" onClick={() => setImageDialogOpen(false)}>取消</Button>
+									<Button onClick={insertEditImageMarkdown} disabled={!imageUrl.trim()}>插入</Button>
 								</DialogFooter>
 							</DialogContent>
 						</Dialog>
