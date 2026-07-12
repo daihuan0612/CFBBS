@@ -128,24 +128,28 @@ export default {
 			return url.origin;
 		};
 
-		// CORS headers helper
-		const corsHeaders = {
-			'Access-Control-Allow-Origin': '*',
+		// CORS headers helper — 返回请求来源的 Origin，支持跨域带 Authorization 请求
+		const getCorsOrigin = () => {
+			const origin = request.headers.get('Origin');
+			return origin || '*';
+		};
+		const corsHeaders = () => ({
+			'Access-Control-Allow-Origin': getCorsOrigin(),
 			'Access-Control-Allow-Methods': 'GET, HEAD, POST, OPTIONS, DELETE, PUT',
 			'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Timestamp, X-Nonce',
-		};
+		});
 
 		// Handle OPTIONS (CORS preflight)
 		if (method === 'OPTIONS') {
 			return new Response(null, {
-				headers: corsHeaders,
+				headers: corsHeaders(),
 			});
 		}
 
 		// Ensure ALL API responses carry CORS headers (cross-origin direct access from Pages)
 		const withCors = (r: Response): Response => {
 			const h = new Headers(r.headers);
-			h.set('Access-Control-Allow-Origin', '*');
+			h.set('Access-Control-Allow-Origin', getCorsOrigin());
 			h.set('Access-Control-Allow-Methods', 'GET, HEAD, POST, OPTIONS, DELETE, PUT');
 			h.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Timestamp, X-Nonce');
 			return new Response(r.body, { status: r.status, statusText: r.statusText, headers: h });
@@ -153,7 +157,7 @@ export default {
 
 		// Helper to return JSON response with CORS
 		const jsonResponse = (data: any, status = 200) => {
-			const headers = new Headers(corsHeaders);
+			const headers = new Headers(corsHeaders());
 			headers.set('Content-Type', 'application/json');
 			// 缓存策略: 帖子列表和用户列表仅浏览器缓存短时间，不进行 CDN 长缓存
 			const cacheablePaths = ['/api/posts', '/api/users'];
@@ -182,7 +186,7 @@ export default {
 			object.writeHttpMetadata(headers);
 			if (object.httpEtag) headers.set('etag', object.httpEtag);
 			headers.set('Cache-Control', 'public, max-age=3600');
-			headers.set('Access-Control-Allow-Origin', '*');
+			headers.set('Access-Control-Allow-Origin', getCorsOrigin());
 			return new Response(method === 'HEAD' ? null : object.body, { headers });
 		}
 
@@ -417,7 +421,7 @@ export default {
 			console.error('Security initialization failed:', e);
 			return Response.json(
 				{ error: 'Server misconfigured' },
-				{ status: 500, headers: corsHeaders }
+				{ status: 500, headers: corsHeaders() }
 			);
 		}
 
