@@ -161,7 +161,8 @@ export default {
 			headers.set('Content-Type', 'application/json');
 			// 缓存策略: 帖子列表和用户列表仅浏览器缓存短时间，不进行 CDN 长缓存
 			const cacheablePaths = ['/api/posts', '/api/users'];
-			if (method === 'GET' && status < 400 && cacheablePaths.some(p => url.pathname === p || url.pathname.startsWith(p + '?'))) {
+			const isListPath = cacheablePaths.some(p => url.pathname === p || url.pathname === p + '/');
+			if (method === 'GET' && status < 400 && isListPath) {
 				headers.set('Cache-Control', 'public, max-age=30');
 			} else if (method === 'GET' && status < 400) {
 				headers.set('Cache-Control', 'no-cache, must-revalidate');
