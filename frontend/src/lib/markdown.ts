@@ -70,9 +70,9 @@ export function renderMarkdownToHtml(markdown: string, r2PublicUrl?: string) {
 	currentR2PublicUrl = r2PublicUrl || '';
 	const windowLike = window as unknown as Window;
 	const DOMPurify = createDOMPurify(windowLike);
-	let html = marked.parse(markdown) as string;
-	// 将全角空格 U+3000 替换为 &emsp; HTML 实体，确保第一段的首行缩进也能正确渲染
-	html = html.replace(/\u3000/g, '&emsp;');
+	// 在 marked 解析前将全角空格替换为 &emsp; 实体，防止第一段的 \u3000 被 marked 吞掉
+	const processed = markdown.replace(/\u3000/g, '&emsp;');
+	let html = marked.parse(processed) as string;
 	return DOMPurify.sanitize(html, {
 		ADD_TAGS: ['video', 'source', 'iframe'],
 		ADD_ATTR: ['allowfullscreen', 'frameborder', 'allow', 'referrerpolicy', 'target', 'rel', 'autoplay', 'muted', 'playsinline', 'preload']
