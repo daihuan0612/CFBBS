@@ -1,13 +1,8 @@
-DROP TABLE IF EXISTS comments;
-DROP TABLE IF EXISTS likes;
-DROP TABLE IF EXISTS posts;
-DROP TABLE IF EXISTS users;
-DROP TABLE IF EXISTS settings;
-DROP TABLE IF EXISTS nonces;
-DROP TABLE IF EXISTS audit_logs;
-DROP TABLE IF EXISTS categories;
+-- 侃侃看 初始表结构
+-- 执行: wrangler d1 migrations apply cforum-db --remote
+-- 注意: 使用 CREATE TABLE IF NOT EXISTS，避免重复执行时清空数据
 
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   email TEXT NOT NULL UNIQUE,
   username TEXT NOT NULL,
@@ -27,13 +22,13 @@ CREATE TABLE users (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE categories (
+CREATE TABLE IF NOT EXISTS categories (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL UNIQUE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE posts (
+CREATE TABLE IF NOT EXISTS posts (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   author_id INTEGER NOT NULL,
   title TEXT NOT NULL,
@@ -46,7 +41,7 @@ CREATE TABLE posts (
   FOREIGN KEY (category_id) REFERENCES categories(id)
 );
 
-CREATE TABLE comments (
+CREATE TABLE IF NOT EXISTS comments (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   post_id INTEGER NOT NULL,
   parent_id INTEGER,
@@ -58,7 +53,7 @@ CREATE TABLE comments (
   FOREIGN KEY (author_id) REFERENCES users(id)
 );
 
-CREATE TABLE likes (
+CREATE TABLE IF NOT EXISTS likes (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   post_id INTEGER NOT NULL,
   user_id INTEGER NOT NULL,
@@ -68,17 +63,17 @@ CREATE TABLE likes (
   FOREIGN KEY (user_id) REFERENCES users(id)
 );
 
-CREATE TABLE settings (
+CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
   value TEXT
 );
 
-CREATE TABLE nonces (
+CREATE TABLE IF NOT EXISTS nonces (
   nonce TEXT PRIMARY KEY,
   expires_at INTEGER NOT NULL
 );
 
-CREATE TABLE sessions (
+CREATE TABLE IF NOT EXISTS sessions (
   jti TEXT PRIMARY KEY,
   user_id INTEGER NOT NULL,
   expires_at INTEGER NOT NULL,
@@ -86,7 +81,7 @@ CREATE TABLE sessions (
   FOREIGN KEY (user_id) REFERENCES users(id)
 );
 
-CREATE TABLE audit_logs (
+CREATE TABLE IF NOT EXISTS audit_logs (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id INTEGER,
   action TEXT NOT NULL,
@@ -97,17 +92,10 @@ CREATE TABLE audit_logs (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-INSERT INTO settings (key, value) VALUES ('turnstile_enabled', '0');
+-- 默认设置
+INSERT OR IGNORE INTO settings (key, value) VALUES ('turnstile_enabled', '0');
 
--- Insert some dummy data
--- Admin user (admin@adysec.com / Admin@123)
--- Hash for 'Admin@123': ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f
-INSERT INTO users (email, username, password, role, verified, nickname) VALUES 
-('admin@adysec.com', 'Admin', 'e86f78a8a3caf0b60d8e74e5942aa6d86dc150cd3c03338aef25b7d2d7e3acc7', 'admin', 1, 'System Admin'),
-('alice@example.com', 'Alice', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', 'user', 1, 'Alice Wonderland'),
-('bob@example.com', 'Bob', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', 'user', 0, NULL);
-
-INSERT INTO categories (name) VALUES ('General'), ('Tech'), ('Random');
-
-INSERT INTO posts (author_id, title, content, category_id) VALUES (1, 'Welcome to 侃侃看', 'This is an official announcement from the admin.', 1);
-INSERT INTO posts (author_id, title, content, category_id) VALUES (2, 'Hello World', 'This is the first post by Alice!', 2);
+-- 默认分类（仅首次插入）
+INSERT OR IGNORE INTO categories (name) VALUES ('General');
+INSERT OR IGNORE INTO categories (name) VALUES ('Tech');
+INSERT OR IGNORE INTO categories (name) VALUES ('Random');
