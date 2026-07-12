@@ -902,7 +902,7 @@ export function PostPage() {
                             {uploadLoading ? <div className="text-sm text-muted-foreground">上传中…</div> : null}
                         </div>
 										{editPreviewOpen ? (
-<div className="rounded-md border bg-muted/20 p-3">
+<div className="w-full rounded-md border bg-muted/20 p-3">
 												<div className="mb-2 text-xs font-medium text-muted-foreground">预览</div>
 												<div
 													ref={editPreviewRef}
