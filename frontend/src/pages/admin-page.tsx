@@ -66,6 +66,11 @@ export function AdminPage() {
 	const [resetUserId, setResetUserId] = React.useState<number | null>(null);
 	const [resetLoading, setResetLoading] = React.useState(false);
 
+	// R2 清理
+	const [analyzing, setAnalyzing] = React.useState(false);
+	const [cleanupResult, setCleanupResult] = React.useState<{ total_files: number; used_files: number; orphaned_files: number; orphans: string[] } | null>(null);
+	const [cleaningUp, setCleaningUp] = React.useState(false);
+
 
 
 	React.useEffect(() => {
@@ -277,6 +282,31 @@ export function AdminPage() {
 			});
 			setResetResult(data);
 		} catch (e: any) { setError(String(e?.message || e)); } finally { setResetLoading(false); }
+	}
+
+	// R2 清理
+	async function analyzeR2() {
+		setAnalyzing(true);
+		setCleanupResult(null);
+		try {
+			const data = await apiFetch<{ total_files: number; used_files: number; orphaned_files: number; orphans: string[] }>('/admin/cleanup/analyze', { headers: getSecurityHeaders('GET') });
+			setCleanupResult(data);
+		} catch (e: any) { setError(String(e?.message || e)); } finally { setAnalyzing(false); }
+	}
+
+	async function executeCleanup() {
+		if (!cleanupResult || cleanupResult.orphaned_files === 0) return;
+		if (!confirm(`⚠️ 确定要删除 ${cleanupResult.orphaned_files} 个孤立文件吗？此操作不可撤销！`)) return;
+		setCleaningUp(true);
+		try {
+			await apiFetch('/admin/cleanup/execute', {
+				method: 'POST',
+				headers: getSecurityHeaders('POST'),
+				body: JSON.stringify({ orphans: cleanupResult.orphans })
+			});
+			setCleanupResult(null);
+			alert('清理完成！');
+		} catch (e: any) { setError(String(e?.message || e)); } finally { setCleaningUp(false); }
 	}
 
 
@@ -531,6 +561,48 @@ export function AdminPage() {
 										</tbody>
 									</table>
 								</div>
+							</CardContent>
+						</Card>
+
+						{/* R2 存储清理 */}
+						<Card>
+							<CardHeader>
+								<CardTitle>R2 存储清理</CardTitle>
+								<p className="text-sm text-muted-foreground">【功能说明】扫描 R2 存储桶中未被任何帖子或头像引用的孤立文件，清理冗余数据以节省存储空间。</p>
+							</CardHeader>
+							<CardContent className="space-y-4">
+								<div className="flex items-center gap-3">
+									<Button onClick={analyzeR2} disabled={analyzing}>
+										{analyzing ? '分析中...' : '开始分析'}
+									</Button>
+									{cleanupResult && cleanupResult.orphaned_files > 0 ? (
+										<Button variant="destructive" onClick={executeCleanup} disabled={cleaningUp}>
+											<Trash2 className="h-4 w-4" />
+											{cleaningUp ? '清理中...' : `清除 ${cleanupResult.orphaned_files} 个孤立文件`}
+										</Button>
+									) : null}
+								</div>
+								{cleanupResult ? (
+									<div className="grid gap-3 sm:grid-cols-3">
+										<div className="rounded-md border p-3">
+											<div className="text-xs text-muted-foreground">总文件数</div>
+											<div className="text-xl font-semibold">{cleanupResult.total_files}</div>
+										</div>
+										<div className="rounded-md border p-3">
+											<div className="text-xs text-muted-foreground">使用中</div>
+											<div className="text-xl font-semibold text-emerald-600">{cleanupResult.used_files}</div>
+										</div>
+										<div className="rounded-md border p-3">
+											<div className="text-xs text-muted-foreground">孤立文件</div>
+											<div className="text-xl font-semibold text-destructive">{cleanupResult.orphaned_files}</div>
+										</div>
+									</div>
+								) : null}
+								{cleanupResult && cleanupResult.orphaned_files === 0 ? (
+									<div className="rounded-md border border-emerald-500/50 bg-emerald-500/10 p-3 text-sm text-emerald-700 dark:text-emerald-300">
+										✅ 没有发现孤立文件，存储很干净！
+									</div>
+								) : null}
 							</CardContent>
 						</Card>
 
