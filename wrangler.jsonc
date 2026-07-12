@@ -17,7 +17,7 @@
 		{
 			"binding": "cforum_db",
 			"database_name": "cforum-db",
-			"database_id": "c5b0855f-3025-4e0a-b08e-ca02f725757b",
+			"database_id": "__D1_DATABASE_ID__",
 			"remote": true,
 			"migrations_dir": "migrations"
 		}
