@@ -7,6 +7,16 @@ import { Security, UserPayload } from './security';
 import { checkRateLimit, RATE_LIMITS_DDL } from './plugins/rate-limiter';
 import { runScheduledCleanup } from './plugins/scheduled-cleanup';
 
+// 内存缓存：减少重复 D1 查询（Worker 实例内跨请求共享）
+interface MemCache { data: any; expiry: number; }
+const caches = new Map<string, MemCache>();
+function getFromCache<T>(key: string, ttlMs: number, fetcher: () => Promise<T>): Promise<T> {
+	const cached = caches.get(key);
+	if (cached && Date.now() < cached.expiry) return Promise.resolve(cached.data as T);
+	return fetcher().then(data => { caches.set(key, { data, expiry: Date.now() + ttlMs }); return data; });
+}
+function invalidateCache(key: string) { caches.delete(key); }
+
 interface DBUser {
     id: number;
     email: string;
@@ -156,18 +166,25 @@ export default {
 		};
 
 		// Helper to return JSON response with CORS
-		const jsonResponse = (data: any, status = 200) => {
+		const jsonResponse = (data: any, status = 200, cacheOverride?: string) => {
 			const headers = new Headers(corsHeaders());
 			headers.set('Content-Type', 'application/json');
-			// 缓存策略: 帖子列表和用户列表仅浏览器缓存短时间，不进行 CDN 长缓存
-			const cacheablePaths = ['/api/posts', '/api/users'];
-			const isListPath = cacheablePaths.some(p => url.pathname === p || url.pathname === p + '/');
-			if (method === 'GET' && status < 400 && isListPath) {
-				headers.set('Cache-Control', 'public, max-age=30');
-			} else if (method === 'GET' && status < 400) {
-				headers.set('Cache-Control', 'no-cache, must-revalidate');
+			if (cacheOverride) {
+				headers.set('Cache-Control', cacheOverride);
 			} else {
-				headers.set('Cache-Control', 'no-store');
+				// 缓存策略: GET 请求按路径区分缓存时间
+				const cacheablePaths: [string, string][] = [
+					['/api/posts', 'public, max-age=120'],
+					['/api/users', 'public, max-age=60'],
+				];
+				const matched = method === 'GET' && status < 400 ? cacheablePaths.find(([p]) => url.pathname === p || url.pathname === p + '/') : undefined;
+				if (matched) {
+					headers.set('Cache-Control', matched[1]);
+				} else if (method === 'GET' && status < 400) {
+					headers.set('Cache-Control', 'no-cache, must-revalidate');
+				} else {
+					headers.set('Cache-Control', 'no-store');
+				}
 			}
 			return new Response(JSON.stringify(data), {
 				status,
@@ -491,45 +508,36 @@ export default {
 		// GET /api/config
 		if (url.pathname === '/api/config' && method === 'GET') {
 			try {
-				const [setting, userCount, settingsAll] = await Promise.all([
-					env.cforum_db.prepare("SELECT value FROM settings WHERE key = 'turnstile_enabled'").first<DBSetting>(),
-					env.cforum_db.prepare('SELECT COUNT(*) as count FROM users').first('count'),
-					env.cforum_db.prepare("SELECT key, value FROM settings").all()
-				]);
-
-				// 只有数据库设置为启用，且两个环境变量都配置时，才启用 Turnstile
-				const dbEnabled = setting ? setting.value === '1' : false;
-				const siteKey = (env as any).TURNSTILE_SITE_KEY || '';
-				const secretKey = (env as any).TURNSTILE_SECRET_KEY || '';
-				const turnstileFullyConfigured = !!(dbEnabled && siteKey && secretKey);
-
-				// 读取所有功能开关
-				const featureFlags: Record<string, boolean> = {
-					invite_only: false,
-					encrypted_attachments_enabled: false,
-					feature_likes: true,
-					feature_bookmarks: true,
-					feature_comments: true,
-					feature_posts: true,
-					watermark_enabled: true
-				};
-				if (settingsAll.results) {
-					for (const row of settingsAll.results) {
-						const key = row.key as string;
-						if (key in featureFlags) {
-							featureFlags[key] = row.value === '1';
+				const data = await getFromCache('config', 300_000, async () => {
+					const [setting, userCount, settingsAll] = await Promise.all([
+						env.cforum_db.prepare("SELECT value FROM settings WHERE key = 'turnstile_enabled'").first<DBSetting>(),
+						env.cforum_db.prepare('SELECT COUNT(*) as count FROM users').first('count'),
+						env.cforum_db.prepare("SELECT key, value FROM settings").all()
+					]);
+					const dbEnabled = setting ? setting.value === '1' : false;
+					const siteKey = (env as any).TURNSTILE_SITE_KEY || '';
+					const secretKey = (env as any).TURNSTILE_SECRET_KEY || '';
+					const turnstileFullyConfigured = !!(dbEnabled && siteKey && secretKey);
+					const featureFlags: Record<string, boolean> = {
+						invite_only: false, encrypted_attachments_enabled: false,
+						feature_likes: true, feature_bookmarks: true,
+						feature_comments: true, feature_posts: true, watermark_enabled: true
+					};
+					if (settingsAll.results) {
+						for (const row of settingsAll.results) {
+							const key = row.key as string;
+							if (key in featureFlags) featureFlags[key] = row.value === '1';
 						}
 					}
-				}
-
-				return jsonResponse({
-					turnstile_enabled: turnstileFullyConfigured,
-					turnstile_site_key: siteKey,
-					user_count: userCount || 0,
-					jwt_secret_configured: !!env.JWT_SECRET && String(env.JWT_SECRET).length >= 32,
-					r2_public_url: (env as any).R2_PUBLIC_BASE_URL || '',
-					...featureFlags
+					return {
+						turnstile_enabled: turnstileFullyConfigured, turnstile_site_key: siteKey,
+						user_count: userCount || 0,
+						jwt_secret_configured: !!env.JWT_SECRET && String(env.JWT_SECRET).length >= 32,
+						r2_public_url: (env as any).R2_PUBLIC_BASE_URL || '',
+						...featureFlags
+					};
 				});
+				return jsonResponse(data, 200, 'public, max-age=300');
 			} catch (e) {
 				return handleError(e);
 			}
@@ -1233,12 +1241,17 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 					isAdmin = admin.role === 'admin';
 				} catch { /* not logged in or not admin */ }
 
-				const { results } = await env.cforum_db.prepare(
-					isAdmin
-						? 'SELECT * FROM categories ORDER BY created_at ASC'
-						: "SELECT id, name, created_at FROM categories WHERE name != '公告' ORDER BY created_at ASC"
-				).all();
-				return jsonResponse(results);
+				const cacheKey = 'categories_' + (isAdmin ? 'admin' : 'user');
+				const results = await getFromCache(cacheKey, 3_600_000, () =>
+					env.cforum_db.prepare(
+						isAdmin
+							? 'SELECT * FROM categories ORDER BY created_at ASC'
+							: "SELECT id, name, created_at FROM categories WHERE name != '公告' ORDER BY created_at ASC"
+					).all<any>()
+				);
+				const resp = jsonResponse(results);
+				resp.headers.set('Cache-Control', 'public, max-age=3600');
+				return resp;
 			} catch (e) {
 				return handleError(e);
 			}
@@ -1931,6 +1944,30 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 		if (url.pathname.match(/^\/api\/posts\/\d+$/) && method === 'GET') {
 			const postId = url.pathname.split('/')[3];
 			try {
+				// 条件缓存检查：先仅查 updated_at（轻量查询），未修改直接 304，不走后续 JOIN
+				const userId = url.searchParams.get('user_id');
+				if (!userId) {
+					const row = await env.cforum_db.prepare('SELECT updated_at FROM posts WHERE id = ?').bind(postId).first<{updated_at: string}>();
+					if (row) {
+						const ifModifiedSince = request.headers.get('If-Modified-Since');
+						if (ifModifiedSince) {
+							const modSince = new Date(ifModifiedSince).getTime();
+							const postTime = new Date(row.updated_at).getTime();
+							if (!isNaN(modSince) && !isNaN(postTime) && postTime <= modSince) {
+								return new Response(null, {
+									status: 304,
+									headers: {
+										'Cache-Control': 'no-cache',
+										'Last-Modified': new Date(postTime).toUTCString(),
+										'Access-Control-Allow-Origin': getCorsOrigin(),
+									}
+								});
+							}
+						}
+					}
+				}
+
+				// 未命中缓存或带 user_id，查全量数据
 				const post = await env.cforum_db.prepare(
 					`SELECT
                         posts.*,
@@ -1955,34 +1992,14 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 				} catch {}
 
 				// Check like status if user_id provided
-				const userId = url.searchParams.get('user_id');
 				if (userId) {
 					const like = await env.cforum_db.prepare('SELECT id FROM likes WHERE post_id = ? AND user_id = ?').bind(postId, userId).first();
 					(post as any).liked = !!like;
 				}
 
-				// 条件缓存：If-Modified-Since 检查（带 user_id 时不走 304，保证 like 状态实时）
-				const postUpdated = (post as any).updated_at as string | undefined;
-				if (postUpdated && !userId) {
-					const ifModifiedSince = request.headers.get('If-Modified-Since');
-					if (ifModifiedSince) {
-						const modSince = new Date(ifModifiedSince).getTime();
-						const postTime = new Date(postUpdated).getTime();
-						if (!isNaN(modSince) && !isNaN(postTime) && postTime <= modSince) {
-							return new Response(null, {
-								status: 304,
-								headers: {
-									'Cache-Control': 'no-cache',
-									'Last-Modified': new Date(postTime).toUTCString(),
-									'Access-Control-Allow-Origin': getCorsOrigin(),
-								}
-							});
-						}
-					}
-				}
-
 				// 设置 Last-Modified 响应头
 				const resp = jsonResponse(post);
+				const postUpdated = (post as any).updated_at as string | undefined;
 				if (postUpdated) {
 					resp.headers.set('Last-Modified', new Date(postUpdated).toUTCString());
 				}
@@ -2118,7 +2135,9 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
                      WHERE post_id = ?
                      ORDER BY created_at ASC`
 				).bind(postId).all();
-				return jsonResponse(results);
+				const resp = jsonResponse(results);
+				resp.headers.set('Cache-Control', 'public, max-age=30');
+				return resp;
 			} catch (e) {
 				return handleError(e);
 			}
