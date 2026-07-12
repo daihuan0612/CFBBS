@@ -149,7 +149,6 @@
 /* Markdown Preview Styles */
 .prose {
 	color: hsl(var(--foreground));
-	max-width: 65ch;
 }
 
 .prose h1 {

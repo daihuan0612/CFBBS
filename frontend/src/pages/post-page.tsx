@@ -902,11 +902,11 @@ export function PostPage() {
                             {uploadLoading ? <div className="text-sm text-muted-foreground">上传中…</div> : null}
                         </div>
 										{editPreviewOpen ? (
-<div className="w-full rounded-md border bg-muted/20 p-3">
+<div className="w-full max-w-full rounded-md border bg-muted/20 p-3">
 												<div className="mb-2 text-xs font-medium text-muted-foreground">预览</div>
 												<div
 													ref={editPreviewRef}
-													className="prose max-w-none break-words [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:my-1"
+													className="prose max-w-full break-words [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:my-1"
 													dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(editContent || '', config?.r2_public_url) }}
 												/>
 											</div>
@@ -917,7 +917,7 @@ export function PostPage() {
 									</div>
 								) : (
 									<div
-										className="w-full prose !max-w-none break-words [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:my-1"
+										className="w-full max-w-full prose !max-w-full break-words [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:my-1"
 										ref={contentRef}
 										dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(post.content || '', config?.r2_public_url) }}
 									/>
