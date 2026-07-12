@@ -70,7 +70,10 @@ export function renderMarkdownToHtml(markdown: string, r2PublicUrl?: string) {
 	currentR2PublicUrl = r2PublicUrl || '';
 	const windowLike = window as unknown as Window;
 	const DOMPurify = createDOMPurify(windowLike);
-	return DOMPurify.sanitize(marked.parse(markdown) as string, {
+	let html = marked.parse(markdown) as string;
+	// 将全角空格 U+3000 替换为 &emsp; HTML 实体，确保第一段的首行缩进也能正确渲染
+	html = html.replace(/\u3000/g, '&emsp;');
+	return DOMPurify.sanitize(html, {
 		ADD_TAGS: ['video', 'source', 'iframe'],
 		ADD_ATTR: ['allowfullscreen', 'frameborder', 'allow', 'referrerpolicy', 'target', 'rel', 'autoplay', 'muted', 'playsinline', 'preload']
 	});
