@@ -640,7 +640,8 @@ export default {
 				}
 
 				const imageKey = await uploadImage(env as unknown as S3Env, file, userId, postId.toString(), type as 'post' | 'avatar');
-			const publicBase = (env as any).BUCKET ? `${getBaseUrl()}/r2` : undefined;
+			const r2PublicUrl = (env as any).R2_PUBLIC_BASE_URL as string | undefined;
+			const publicBase = (env as any).BUCKET ? (r2PublicUrl || `${getBaseUrl()}/r2`) : undefined;
 			const imageUrl = getPublicUrl(env as unknown as S3Env, imageKey, publicBase);
 				return jsonResponse({ success: true, url: imageUrl });
 			} catch (e) {

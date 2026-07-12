@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { useConfig } from '@/hooks/use-config';
 import { apiFetch, API_BASE, formatDate, getSecurityHeaders, type Category, type Comment, type Post } from '@/lib/api';
 import { getToken, getUser } from '@/lib/auth';
-import { attachFancybox, highlightCodeBlocks, renderMarkdownToHtml } from '@/lib/markdown';
+import { attachFancybox, highlightCodeBlocks, initVideoPosters, renderMarkdownToHtml } from '@/lib/markdown';
 import { validateText } from '@/lib/validators';
 
 export function PostPage() {
@@ -231,7 +231,7 @@ export function PostPage() {
 			const match = url.match(/video\/(BV[\w]+)/);
 			if (match) insertIntoEditContent(`\n<div class="bilibili-embed"><iframe src="https://player.bilibili.com/player.html?bvid=${match[1]}" frameborder="0" allowfullscreen></iframe></div>\n`);
 		} else {
-			insertIntoEditContent(`\n<div align="center">\n<video controls width="100%"><source src="${url}" type="video/mp4"></video>\n</div>\n`);
+			insertIntoEditContent(`\n<div align="center">\n<video controls playsinline muted width="100%"><source src="${url}" type="video/mp4"></video>\n</div>\n`);
 		}
 		setVideoUrl('');
 		setVideoDialogOpen(false);
@@ -455,6 +455,7 @@ export function PostPage() {
 		const el = contentRef.current;
 		if (!el) return;
 		highlightCodeBlocks(el);
+		initVideoPosters(el);
 		const cleanup = attachFancybox(el);
 		return cleanup;
 	}, [post, comments.length, isEditing]);
@@ -465,6 +466,7 @@ export function PostPage() {
 		const el = editPreviewRef.current;
 		if (!el) return;
 		highlightCodeBlocks(el);
+		initVideoPosters(el);
 		const cleanup = attachFancybox(el);
 		return cleanup;
 	}, [isEditing, editPreviewOpen, editContent]);
@@ -980,11 +982,11 @@ export function PostPage() {
 							<CardHeader><CardTitle>📁 网盘附件</CardTitle></CardHeader>
 							<CardContent className="space-y-3">
 								{attachments.map((att: any) => (
-									<div key={att.id} className="flex items-center justify-between rounded-md border p-3">
+									<div key={att.id} className="flex flex-col gap-3 rounded-md border p-3 sm:flex-row sm:items-center sm:justify-between">
 										<div className="flex items-center gap-3">
-											<Lock className="h-5 w-5 text-muted-foreground" />
-											<div>
-												<div className="text-sm font-medium">{att.file_name}</div>
+											<Lock className="h-5 w-5 shrink-0 text-muted-foreground" />
+											<div className="min-w-0">
+												<div className="truncate text-sm font-medium">{att.file_name}</div>
 												<div className="text-xs text-muted-foreground">
 													{att.has_password ? '🔒 需密码访问' : '🔓 公开'}
 													{att.extract_code ? ` · 提取码: ${att.extract_code}` : ''}
@@ -993,12 +995,12 @@ export function PostPage() {
 										</div>
 										{verifiedLinks[att.id] ? (
 											<a href={verifiedLinks[att.id]} target="_blank" rel="noopener noreferrer">
-												<Button size="sm" variant="outline"><ExternalLink className="h-4 w-4" /> 打开链接</Button>
+												<Button size="sm" variant="outline" className="w-full sm:w-auto"><ExternalLink className="h-4 w-4" /> 打开链接</Button>
 											</a>
 										) : att.has_password ? (
-											<div className="flex items-center gap-2">
-												<Input type="password" placeholder="密码" className="h-9 w-28 text-xs" id={'pwd-' + att.id} />
-												<Button size="sm" variant="outline" onClick={() => {
+											<div className="flex w-full items-center gap-2 sm:w-auto">
+												<Input type="password" placeholder="密码" className="h-9 flex-1 text-xs sm:w-28" id={'pwd-' + att.id} />
+												<Button size="sm" variant="outline" className="shrink-0" onClick={() => {
 													const input = document.getElementById('pwd-' + att.id) as HTMLInputElement;
 													if (input?.value) verifyAttachmentLink(att.id, input.value);
 												}}><Lock className="h-4 w-4" /> 解锁</Button>
@@ -1006,7 +1008,7 @@ export function PostPage() {
 											</div>
 										) : (
 											<a href={att.link_url} target="_blank" rel="noopener noreferrer">
-												<Button size="sm" variant="outline"><ExternalLink className="h-4 w-4" /> 打开链接</Button>
+												<Button size="sm" variant="outline" className="w-full sm:w-auto"><ExternalLink className="h-4 w-4" /> 打开链接</Button>
 											</a>
 										)}
 									</div>

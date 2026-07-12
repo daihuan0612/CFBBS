@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { useConfig } from '@/hooks/use-config';
 import { apiFetch, API_BASE, formatDate, getSecurityHeaders, type Category, type Post } from '@/lib/api';
 import { getToken, getUser } from '@/lib/auth';
-import { attachFancybox, highlightCodeBlocks, renderMarkdownToHtml } from '@/lib/markdown';
+import { attachFancybox, highlightCodeBlocks, initVideoPosters, renderMarkdownToHtml } from '@/lib/markdown';
 import { validateText } from '@/lib/validators';
 
 export function IndexPage() {
@@ -249,7 +249,7 @@ export function IndexPage() {
 		// 默认：用 <video> 标签（支持 mp4/webm/mov 及任何返回视频内容的代理链接）
 		const ext = trimmed.split('?')[0].split('.').pop()?.toLowerCase();
 		const mime = ext === 'webm' ? 'video/webm' : ext === 'ogg' ? 'video/ogg' : 'video/mp4';
-		const embed = `\n<div align="center">\n<video controls width="100%"><source src="${trimmed}" type="${mime}"></video>\n</div>\n`;
+		const embed = `\n<div align="center">\n<video controls playsinline muted width="100%"><source src="${trimmed}" type="${mime}"></video>\n</div>\n`;
 		insertIntoContent(embed);
 	}
 
@@ -457,6 +457,7 @@ export function IndexPage() {
 		const el = previewRef.current;
 		if (!el) return;
 		highlightCodeBlocks(el);
+		initVideoPosters(el);
 		const cleanup = attachFancybox(el);
 		return cleanup;
 	}, [previewOpen, newContent]);
@@ -666,7 +667,7 @@ export function IndexPage() {
 								value={searchInput}
 								onChange={(e) => setSearchInput(e.target.value)}
 								placeholder="搜索标题/内容"
-								className="h-9 w-48"
+								className="h-9 w-full sm:w-48"
 							/>
 							<Button variant="outline" size="sm" type="submit" disabled={loading}>
 								<Search className="h-4 w-4" />
@@ -957,7 +958,7 @@ export function IndexPage() {
 												<img
 													src={coverUrl}
 													alt=""
-													className="h-20 w-28 shrink-0 object-contain"
+													className="hidden sm:block h-20 w-28 shrink-0 object-contain"
 													loading="lazy"
 													referrerPolicy="no-referrer"
 												/>

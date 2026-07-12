@@ -43,7 +43,7 @@ export function SiteHeader({
 					<Home className="h-5 w-5" />
 					<span className="sr-only">主页</span>
 				</a>
-				<div className="flex items-center gap-2">
+				<div className="flex items-center gap-1 sm:gap-2">
 					<Button type="button" variant="ghost" size="sm" onClick={toggleTheme}>
 						{theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
 						<span className="sr-only">切换主题</span>
@@ -51,48 +51,59 @@ export function SiteHeader({
 					{user ? (
 						<>
 							<NotificationBell />
-							<span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+							<span className="inline-flex items-center gap-1 text-sm text-muted-foreground sm:gap-2">
 								{user.avatar_url ? (
 									<img
 										src={user.avatar_url}
 										alt=""
-										className="h-7 w-7 rounded-full object-cover"
+										className="h-7 w-7 shrink-0 rounded-full object-cover"
 										loading="lazy"
 										referrerPolicy="no-referrer"
 									/>
 								) : (
-									<span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-muted text-[10px] text-muted-foreground">
+									<span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] text-muted-foreground">
 										<UserIcon className="h-4 w-4" />
 									</span>
 								)}
-								<span>
+								<span className="hidden sm:inline">
 									欢迎，<span className="text-foreground">{user.username}</span>
 								</span>
 								{user.role === 'admin' ? (
-									<span className="inline-flex items-center gap-1 rounded border border-indigo-500/30 bg-indigo-500/10 px-2 py-0.5 text-[10px] font-medium text-indigo-700 dark:text-indigo-300">
+									<span className="inline-flex shrink-0 items-center gap-1 rounded border border-indigo-500/30 bg-indigo-500/10 px-2 py-0.5 text-[10px] font-medium text-indigo-700 dark:text-indigo-300">
 										<Shield className="h-3 w-3" />
-										<span className="sr-only">管理员</span>
 									</span>
 								) : null}
 							</span>
 							{user.role === 'admin' ? (
-								<Button asChild variant="ghost" size="sm">
+								<Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
 									<a href="/admin">
 										<Shield className="h-4 w-4" />
-										<span className="sr-only">管理后台</span>
 									</a>
 								</Button>
 							) : null}
-							<Button asChild variant="ghost" size="sm">
+							<Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
 								<a href="/settings">
 									<Settings className="h-4 w-4" />
-									<span className="sr-only">设置</span>
 								</a>
 							</Button>
-							<Separator orientation="vertical" className="h-6" />
+							<Separator orientation="vertical" className="hidden h-6 sm:block" />
 							<Button
 								variant="destructive"
 								size="sm"
+								className="hidden sm:inline-flex"
+								onClick={() => {
+									logout();
+									onLogout?.();
+									window.location.href = '/';
+								}}
+							>
+								<LogOut className="h-4 w-4" />
+							</Button>
+							{/* 移动端退出按钮（仅图标） */}
+							<Button
+								variant="destructive"
+								size="sm"
+								className="inline-flex sm:hidden"
 								onClick={() => {
 									logout();
 									onLogout?.();
@@ -105,13 +116,20 @@ export function SiteHeader({
 						</>
 					) : (
 						<>
-							<Button asChild variant="ghost" size="sm">
+							<Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
 								<a href="/login">
 									<LogIn className="h-4 w-4" />
 									<span className="sr-only">登录</span>
 								</a>
 							</Button>
-							<Button asChild size="sm">
+							{/* 移动端登录 */}
+							<Button asChild variant="ghost" size="sm" className="inline-flex sm:hidden">
+								<a href="/login">
+									<LogIn className="h-4 w-4" />
+									<span className="sr-only">登录</span>
+								</a>
+							</Button>
+							<Button asChild size="sm" className="hidden sm:inline-flex">
 								<a href="/register">
 									<UserPlus className="h-4 w-4" />
 									<span className="sr-only">注册</span>

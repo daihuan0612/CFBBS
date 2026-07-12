@@ -58,7 +58,45 @@ export function renderMarkdownToHtml(markdown: string) {
 	const DOMPurify = createDOMPurify(windowLike);
 	return DOMPurify.sanitize(marked.parse(markdown) as string, {
 		ADD_TAGS: ['video', 'source', 'iframe'],
-		ADD_ATTR: ['allowfullscreen', 'frameborder', 'allow', 'referrerpolicy', 'target', 'rel']
+		ADD_ATTR: ['allowfullscreen', 'frameborder', 'allow', 'referrerpolicy', 'target', 'rel', 'autoplay', 'muted', 'playsinline', 'preload']
+	});
+}
+
+/**
+ * 初始化视频封面：静音播放 0.1 秒加载第一帧画面，然后暂停。
+ * 用户点击播放时恢复声音正常播放。
+ */
+export function initVideoPosters(root: HTMLElement | null) {
+	if (!root) return;
+	const videos = root.querySelectorAll<HTMLVideoElement>('video');
+	videos.forEach((video) => {
+		if (video.dataset.posterLoaded) return;
+		video.dataset.posterLoaded = 'true';
+
+		// 确保满足浏览器自动播放策略
+		video.muted = true;
+		video.playsInline = true;
+		video.preload = 'auto';
+
+		const playPromise = video.play();
+		if (playPromise !== undefined) {
+			playPromise
+				.then(() => {
+					// 播放 100ms 后暂停，让浏览器渲染出第一帧作为封面
+					setTimeout(() => {
+						video.pause();
+						video.currentTime = 0;
+						// 恢复声音，用户点击播放时即有声音
+						video.muted = false;
+					}, 100);
+				})
+				.catch(() => {
+					// 自动播放被阻止（如 iOS），保持 controls 让用户手动播放
+					video.muted = false;
+				});
+		} else {
+			video.muted = false;
+		}
 	});
 }
 

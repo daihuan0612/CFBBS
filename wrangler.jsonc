@@ -90,6 +90,16 @@
 	 */
 	// "vars": {  "MY_VARIABLE": "production_value" }
 	/**
+	 * R2_PUBLIC_BASE_URL
+	 * 自定义 R2 图片 CDN 域名，解决 CF 分配域在中国大陆无法访问的问题。
+	 * 设置后图片 URL 将使用此域名（如 https://img.yourdomain.com/r2/...）。
+	 * 可通过 wrangler secret put 或 dashboard 设置：
+	 *   wrangler secret put R2_PUBLIC_BASE_URL https://your-custom-domain.com
+	 *
+	 * 或者直接在 wrangler.jsonc 的 vars 中设置（明文，适合非敏感场景）：
+	 *   "R2_PUBLIC_BASE_URL": "https://img.yourdomain.com"
+	 */
+	/**
 	 * Service Bindings (communicate between multiple Workers)
 	 * https://developers.cloudflare.com/workers/wrangler/configuration/#service-bindings
 	 */
