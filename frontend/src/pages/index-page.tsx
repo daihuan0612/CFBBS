@@ -249,7 +249,7 @@ export function IndexPage() {
 		// 默认：用 <video> 标签（支持 mp4/webm/mov 及任何返回视频内容的代理链接）
 		const ext = trimmed.split('?')[0].split('.').pop()?.toLowerCase();
 		const mime = ext === 'webm' ? 'video/webm' : ext === 'ogg' ? 'video/ogg' : 'video/mp4';
-		const embed = `\n<video controls width="100%"><source src="${trimmed}" type="${mime}"></video>\n`;
+		const embed = `\n<div align="center">\n<video controls width="100%"><source src="${trimmed}" type="${mime}"></video>\n</div>\n`;
 		insertIntoContent(embed);
 	}
 

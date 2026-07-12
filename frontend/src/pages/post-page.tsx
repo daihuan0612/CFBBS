@@ -103,7 +103,7 @@ export function PostPage() {
 			const match = url.match(/video\/(BV[\w]+)/);
 			if (match) insertIntoEditContent(`\n<div class="bilibili-embed"><iframe src="https://player.bilibili.com/player.html?bvid=${match[1]}" frameborder="0" allowfullscreen></iframe></div>\n`);
 		} else {
-			insertIntoEditContent(`\n<video controls width="100%"><source src="${url}" type="video/mp4"></video>\n`);
+			insertIntoEditContent(`\n<div align="center">\n<video controls width="100%"><source src="${url}" type="video/mp4"></video>\n</div>\n`);
 		}
 		setVideoUrl('');
 		setVideoDialogOpen(false);
