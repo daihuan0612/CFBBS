@@ -502,7 +502,7 @@ export default {
         if (['POST', 'PUT', 'DELETE'].includes(method)) {
              const validation = await security.validateRequest(request);
              if (!validation.valid) {
-                 return jsonResponse({ error: validation.error || 'Security check failed' }, 400);
+                 return jsonResponse({ error: validation.error || '安全验证失败' }, 400);
              }
         }
 
@@ -641,17 +641,17 @@ export default {
 				const type = formData.get('type') || 'post';
 
 				if (!file || !(file instanceof File)) {
-					return jsonResponse({ error: 'No file uploaded' }, 400);
+					return jsonResponse({ error: '未上传文件' }, 400);
 				}
 
 				if (!file.type.startsWith('image/')) {
-					return jsonResponse({ error: 'Only images are allowed' }, 400);
+					return jsonResponse({ error: '仅允许上传图片' }, 400);
 				}
 
 // Check file size (2MB = 2 * 1024 * 1024 bytes)
 			const MAX_SIZE = 2 * 1024 * 1024;
 			if (file.size > MAX_SIZE) {
-				return jsonResponse({ error: 'File size too large (Max 2MB)' }, 400);
+				return jsonResponse({ error: '文件大小超过限制（最大 2MB）' }, 400);
 				}
 
 				const imageKey = await uploadImage(env as unknown as S3Env, file, userId, postId.toString(), type as 'post' | 'avatar');
@@ -675,12 +675,12 @@ export default {
 				// Turnstile Check
 				const ip = request.headers.get('CF-Connecting-IP') || '127.0.0.1';
 				if (!(await checkTurnstile(body, ip))) {
-					return jsonResponse({ error: 'Turnstile verification failed' }, 403);
+					return jsonResponse({ error: '验证码验证失败' }, 403);
 				}
 
 				const { email, password, totp_code } = body;
 				if (!email || !password) {
-					return jsonResponse({ error: 'Missing email or password' }, 400);
+					return jsonResponse({ error: '请输入用户名和密码' }, 400);
 				}
 
 				const user = await env.cforum_db
@@ -688,12 +688,12 @@ export default {
 					.bind(email)
 					.first<DBUser>();
 				if (!user) {
-					return jsonResponse({ error: 'Username or Password Error' }, 401);
+					return jsonResponse({ error: '用户名或密码错误' }, 401);
 				}
 
 				const passwordHash = await hashPassword(password);
 				if (user.password !== passwordHash) {
-					return jsonResponse({ error: 'Username or Password Error' }, 401);
+					return jsonResponse({ error: '用户名或密码错误' }, 401);
 				}
 
 				// TOTP Check
@@ -702,7 +702,7 @@ export default {
 						return jsonResponse({ error: 'TOTP_REQUIRED' }, 403);
 					}
 					if (!user.totp_secret) {
-						return jsonResponse({ error: 'TOTP not configured' }, 500);
+						return jsonResponse({ error: '2FA 未配置' }, 500);
 					}
 
 					const totp = new OTPAuth.TOTP({
@@ -714,7 +714,7 @@ export default {
 
 					const delta = totp.validate({ token: totp_code, window: 1 });
 					if (delta === null) {
-						return jsonResponse({ error: 'Invalid TOTP code' }, 401);
+						return jsonResponse({ error: '2FA 验证码错误' }, 401);
 					}
 				}
 
@@ -754,22 +754,22 @@ export default {
 				const user_id = userPayload.id;
 
 				if (username) {
-					if (username.length > 20) return jsonResponse({ error: 'Username too long (Max 20 chars)' }, 400);
-					if (isVisuallyEmpty(username)) return jsonResponse({ error: 'Username cannot be empty' }, 400);
-					if (hasInvisibleCharacters(username)) return jsonResponse({ error: 'Username contains invalid invisible characters' }, 400);
-					if (hasControlCharacters(username)) return jsonResponse({ error: 'Username contains invalid control characters' }, 400);
-					if (hasRestrictedKeywords(username)) return jsonResponse({ error: 'Username contains restricted keywords' }, 400);
+					if (username.length > 20) return jsonResponse({ error: '昵称过长（最多 20 个字符）' }, 400);
+					if (isVisuallyEmpty(username)) return jsonResponse({ error: '昵称不能为空' }, 400);
+					if (hasInvisibleCharacters(username)) return jsonResponse({ error: '昵称包含不可见字符' }, 400);
+					if (hasControlCharacters(username)) return jsonResponse({ error: '昵称包含控制字符' }, 400);
+					if (hasRestrictedKeywords(username)) return jsonResponse({ error: '昵称包含敏感词' }, 400);
 
 					// Check Uniqueness
 					const existingUser = await env.cforum_db.prepare('SELECT id FROM users WHERE username = ? AND id != ?').bind(username, user_id).first<{id:number}>();
 					if (existingUser) {
-						return jsonResponse({ error: 'Username already taken' }, 409);
+						return jsonResponse({ error: '该昵称已被使用' }, 409);
 					}
 				}
 
 				// Fetch current user
 				const currentUser = await env.cforum_db.prepare('SELECT * FROM users WHERE id = ?').bind(user_id).first<DBUser>();
-				if (!currentUser) return jsonResponse({ error: 'User not found' }, 404);
+				if (!currentUser) return jsonResponse({ error: '用户不存在' }, 404);
 
 				let newUsername = currentUser.username;
 				if (username !== undefined) {
@@ -782,8 +782,8 @@ export default {
 						// Generate Identicon
 						newAvatarUrl = await generateIdenticon(String(user_id));
 					} else {
-						if (avatar_url.length > 2000) return jsonResponse({ error: 'Avatar URL too long (Max 2000 chars)' }, 400);
-						if (!/^https?:\/\//i.test(avatar_url) && !avatar_url.startsWith('data:image/svg+xml')) return jsonResponse({ error: 'Invalid Avatar URL (Must start with http:// or https://)' }, 400);
+						if (avatar_url.length > 2000) return jsonResponse({ error: '头像链接过长（最多 2000 个字符）' }, 400);
+						if (!/^https?:\/\//i.test(avatar_url) && !avatar_url.startsWith('data:image/svg+xml')) return jsonResponse({ error: '头像链接格式无效（需以 http:// 或 https:// 开头）' }, 400);
 						newAvatarUrl = avatar_url;
 					}
 				}
@@ -812,7 +812,7 @@ export default {
 				}
 
 			const user = await env.cforum_db.prepare('SELECT * FROM users WHERE id = ?').bind(user_id).first<DBUser>();
-			if (!user) return jsonResponse({ error: 'User not found' }, 404);
+			if (!user) return jsonResponse({ error: '用户不存在' }, 404);
 				return jsonResponse({
 					success: true,
 					user: {
@@ -835,7 +835,7 @@ export default {
 			try {
 				const payload = await authenticate(request);
 				const user = await env.cforum_db.prepare('SELECT id, email, username, avatar_url, role, totp_enabled, email_notifications FROM users WHERE id = ?').bind(payload.id).first<any>();
-				if (!user) return jsonResponse({ error: 'User not found' }, 404);
+				if (!user) return jsonResponse({ error: '用户不存在' }, 404);
 				return jsonResponse({
 					username: user.username,
 					email: user.email,
@@ -853,23 +853,23 @@ export default {
 				const body = await request.json() as any;
 				const { password, totp_code } = body;
 
-				if (!password) return jsonResponse({ error: 'Missing credentials' }, 400);
+				if (!password) return jsonResponse({ error: '请输入密码' }, 400);
 
 				const user_id = userPayload.id;
 
 				const user = await env.cforum_db.prepare('SELECT * FROM users WHERE id = ?').bind(user_id).first<DBUser>();
-				if (!user) return jsonResponse({ error: 'User not found' }, 404);
+				if (!user) return jsonResponse({ error: '用户不存在' }, 404);
 
 				// Verify Password (Double check for sensitive delete op)
 				const passwordHash = await hashPassword(password);
 				if (user.password !== passwordHash) {
-					return jsonResponse({ error: 'Invalid password' }, 401);
+					return jsonResponse({ error: '密码错误' }, 401);
 				}
 
 				// Verify TOTP if enabled
 				if (user.totp_enabled) {
 					if (!totp_code) return jsonResponse({ error: 'TOTP_REQUIRED' }, 403);
-					if (!user.totp_secret) return jsonResponse({ error: 'TOTP not configured' }, 500);
+					if (!user.totp_secret) return jsonResponse({ error: '2FA 未配置' }, 500);
 					const totp = new OTPAuth.TOTP({
 						algorithm: 'SHA1',
 						digits: 6,
@@ -877,7 +877,7 @@ export default {
 						secret: OTPAuth.Secret.fromBase32(String(user.totp_secret))
 					});
 					if (totp.validate({ token: totp_code, window: 1 }) === null) {
-						return jsonResponse({ error: 'Invalid TOTP code' }, 401);
+						return jsonResponse({ error: '2FA 验证码错误' }, 401);
 					}
 				}
 
@@ -934,7 +934,7 @@ export default {
 				await env.cforum_db.prepare('UPDATE users SET totp_secret = ?, totp_enabled = 0 WHERE id = ?').bind(secretBase32, user_id).run();
 
 				const user = await env.cforum_db.prepare('SELECT email FROM users WHERE id = ?').bind(user_id).first<DBUserEmail>();
-			if (!user) return jsonResponse({ error: 'User not found' }, 404);
+			if (!user) return jsonResponse({ error: '用户不存在' }, 404);
 
 				await security.logAudit(userPayload.id, 'SETUP_TOTP', 'user', String(user_id), {}, request);
 
@@ -964,11 +964,11 @@ export default {
 				const { token } = body;
 				const user_id = userPayload.id; // Force use of authenticated ID
 
-				if (!token) return jsonResponse({ error: 'Missing parameters' }, 400);
+				if (!token) return jsonResponse({ error: '缺少参数' }, 400);
 
 				const user = await env.cforum_db.prepare('SELECT totp_secret FROM users WHERE id = ?').bind(user_id).first<DBUserTotp>();
 
-				if (!user || !user.totp_secret) return jsonResponse({ error: 'TOTP not setup' }, 400);
+				if (!user || !user.totp_secret) return jsonResponse({ error: '2FA 未设置' }, 400);
 
 				const totp = new OTPAuth.TOTP({
 					algorithm: 'SHA1',
@@ -984,7 +984,7 @@ export default {
 					await security.logAudit(userPayload.id, 'ENABLE_TOTP', 'user', String(user_id), {}, request);
 					return jsonResponse({ success: true });
 				} else {
-					return jsonResponse({ error: 'Invalid code' }, 400);
+					return jsonResponse({ error: '验证码错误' }, 400);
 				}
 			} catch (e) {
 				return handleError(e);
@@ -999,11 +999,11 @@ export default {
 				// Turnstile Check
 				const ip = request.headers.get('CF-Connecting-IP') || '127.0.0.1';
 				if (!(await checkTurnstile(body, ip))) {
-					return jsonResponse({ error: 'Turnstile verification failed' }, 403);
+					return jsonResponse({ error: '验证码验证失败' }, 403);
 				}
 
 				const { email } = body;
-				if (!email) return jsonResponse({ error: 'Missing email' }, 400);
+				if (!email) return jsonResponse({ error: '请输入邮箱地址' }, 400);
 
 				const user = await env.cforum_db.prepare('SELECT id FROM users WHERE email = ?').bind(email).first();
 				if (!user) return jsonResponse({ success: true }); // Silent fail
@@ -1040,23 +1040,23 @@ export default {
 				// Turnstile Check
 				const ip = request.headers.get('CF-Connecting-IP') || '127.0.0.1';
 				if (!(await checkTurnstile(body, ip))) {
-					return jsonResponse({ error: 'Turnstile verification failed' }, 403);
+					return jsonResponse({ error: '验证码验证失败' }, 403);
 				}
 
 				const { token, new_password, totp_code } = body;
-				if (!token || !new_password) return jsonResponse({ error: 'Missing parameters' }, 400);
+				if (!token || !new_password) return jsonResponse({ error: '缺少参数' }, 400);
 
-				if (new_password.length < 8 || new_password.length > 16) return jsonResponse({ error: 'Password must be 8-16 characters' }, 400);
+				if (new_password.length < 8 || new_password.length > 16) return jsonResponse({ error: '密码长度需 8-16 个字符' }, 400);
 
 				// Verify token
 				const user = await env.cforum_db.prepare('SELECT * FROM users WHERE reset_token = ?').bind(token).first<DBUser>();
-				if (!user) return jsonResponse({ error: 'Invalid token' }, 400);
-				if (!user.reset_token_expires || Date.now() > user.reset_token_expires) return jsonResponse({ error: 'Token expired' }, 400);
+				if (!user) return jsonResponse({ error: '重置链接无效' }, 400);
+				if (!user.reset_token_expires || Date.now() > user.reset_token_expires) return jsonResponse({ error: '重置链接已过期' }, 400);
 
 				// If user has 2FA, require it
 				if (user.totp_enabled) {
 					if (!totp_code) return jsonResponse({ error: 'TOTP_REQUIRED' }, 403);
-					if (!user.totp_secret) return jsonResponse({ error: 'TOTP not configured' }, 500);
+					if (!user.totp_secret) return jsonResponse({ error: '2FA 未配置' }, 500);
 					const totp = new OTPAuth.TOTP({
 						algorithm: 'SHA1',
 						digits: 6,
@@ -1064,7 +1064,7 @@ export default {
 						secret: OTPAuth.Secret.fromBase32(String(user.totp_secret))
 					});
 					if (totp.validate({ token: totp_code, window: 1 }) === null) {
-						return jsonResponse({ error: 'Invalid TOTP code' }, 401);
+						return jsonResponse({ error: '2FA 验证码错误' }, 401);
 					}
 				}
 
@@ -1090,19 +1090,19 @@ export default {
 				const body = await request.json() as any;
 				const { new_email, totp_code } = body;
 
-				if (!new_email) return jsonResponse({ error: 'Missing parameters' }, 400);
+				if (!new_email) return jsonResponse({ error: '缺少参数' }, 400);
 
-				if (new_email.length > 50) return jsonResponse({ error: 'Email too long (Max 50 chars)' }, 400);
+				if (new_email.length > 50) return jsonResponse({ error: '邮箱过长（最多 50 个字符）' }, 400);
 
 				const user_id = userPayload.id;
 
 const user = await env.cforum_db.prepare('SELECT * FROM users WHERE id = ?').bind(user_id).first<DBUser>();
-				if (!user) return jsonResponse({ error: 'User not found' }, 404);
+				if (!user) return jsonResponse({ error: '用户不存在' }, 404);
 
 				// Verify 2FA if enabled
 				if (user.totp_enabled) {
 					if (!totp_code) return jsonResponse({ error: 'TOTP_REQUIRED' }, 403);
-					if (!user.totp_secret) return jsonResponse({ error: 'TOTP not configured' }, 500);
+					if (!user.totp_secret) return jsonResponse({ error: '2FA 未配置' }, 500);
 					const totp = new OTPAuth.TOTP({
 						algorithm: 'SHA1',
 						digits: 6,
@@ -1110,13 +1110,13 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE id = ?').bin
 						secret: OTPAuth.Secret.fromBase32(String(user.totp_secret))
 					});
 					if (totp.validate({ token: totp_code, window: 1 }) === null) {
-						return jsonResponse({ error: 'Invalid TOTP code' }, 401);
+						return jsonResponse({ error: '2FA 验证码错误' }, 401);
 					}
 				}
 
 				// Check if email already exists
 				const exists = await env.cforum_db.prepare('SELECT id FROM users WHERE email = ?').bind(new_email).first();
-				if (exists) return jsonResponse({ error: 'Email already in use' }, 400);
+				if (exists) return jsonResponse({ error: '该邮箱已被使用' }, 400);
 
 				const token = generateToken();
 				await env.cforum_db.prepare('UPDATE users SET pending_email = ?, email_change_token = ? WHERE id = ?')
@@ -1167,14 +1167,14 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 				const body = await request.json() as any;
 				const { password, email, username, avatar_url } = body;
 
-				if (password && (password.length < 8 || password.length > 16)) return jsonResponse({ error: 'Password must be 8-16 characters' }, 400);
+				if (password && (password.length < 8 || password.length > 16)) return jsonResponse({ error: '密码长度需 8-16 个字符' }, 400);
 
 				if (password) {
 					const hash = await hashPassword(password);
 					await env.cforum_db.prepare('UPDATE users SET password = ? WHERE id = ?').bind(hash, id).run();
 				}
 				if (email) {
-					if (email.length > 50) return jsonResponse({ error: 'Email too long (Max 50 chars)' }, 400);
+					if (email.length > 50) return jsonResponse({ error: '邮箱过长（最多 50 个字符）' }, 400);
 					await env.cforum_db.prepare('UPDATE users SET email = ? WHERE id = ?').bind(email, id).run();
 				}
 				if (avatar_url !== undefined) {
@@ -1184,8 +1184,8 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 						const identicon = await generateIdenticon(String(id));
 						await env.cforum_db.prepare('UPDATE users SET avatar_url = ? WHERE id = ?').bind(identicon, id).run();
 					} else {
-						if (avatar_url.length > 500) return jsonResponse({ error: 'Avatar URL too long (Max 500 chars)' }, 400);
-						if (!/^https?:\/\//i.test(avatar_url) && !avatar_url.startsWith('data:image/svg+xml')) return jsonResponse({ error: 'Invalid Avatar URL' }, 400);
+						if (avatar_url.length > 500) return jsonResponse({ error: '头像链接过长（最多 500 个字符）' }, 400);
+						if (!/^https?:\/\//i.test(avatar_url) && !avatar_url.startsWith('data:image/svg+xml')) return jsonResponse({ error: '头像链接格式无效' }, 400);
 						await env.cforum_db.prepare('UPDATE users SET avatar_url = ? WHERE id = ?').bind(avatar_url, id).run();
 					}
 
@@ -1203,10 +1203,10 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 					}
 				}
 				if (username) {
-					if (username.length > 20) return jsonResponse({ error: 'Username too long (Max 20 chars)' }, 400);
-					if (isVisuallyEmpty(username)) return jsonResponse({ error: 'Username cannot be empty' }, 400);
-					if (hasInvisibleCharacters(username)) return jsonResponse({ error: 'Username contains invalid invisible characters' }, 400);
-					if (hasControlCharacters(username)) return jsonResponse({ error: 'Username contains invalid control characters' }, 400);
+					if (username.length > 20) return jsonResponse({ error: '昵称过长（最多 20 个字符）' }, 400);
+					if (isVisuallyEmpty(username)) return jsonResponse({ error: '昵称不能为空' }, 400);
+					if (hasInvisibleCharacters(username)) return jsonResponse({ error: '昵称包含不可见字符' }, 400);
+					if (hasControlCharacters(username)) return jsonResponse({ error: '昵称包含控制字符' }, 400);
 
 					await env.cforum_db.prepare('UPDATE users SET username = ? WHERE id = ?').bind(username, id).run();
 
@@ -1336,7 +1336,7 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 
 				const body = await request.json() as any;
 				const { name } = body;
-				if (!name) return jsonResponse({ error: 'Missing name' }, 400);
+				if (!name) return jsonResponse({ error: '请输入分类名称' }, 400);
 
 				// Check if name already exists
 				const existing = await env.cforum_db.prepare('SELECT id FROM categories WHERE name = ?').bind(name).first();
@@ -1359,7 +1359,7 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 
 				const body = await request.json() as any;
 				const { name } = body;
-				if (!name) return jsonResponse({ error: 'Missing name' }, 400);
+				if (!name) return jsonResponse({ error: '请输入分类名称' }, 400);
 
 				// Check category exists first, bail early if no-op
 				const existing = await env.cforum_db.prepare('SELECT name FROM categories WHERE id = ?').bind(id).first<{name: string}>();
@@ -1387,7 +1387,7 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 				// Check if there are posts in this category
 				const count = await env.cforum_db.prepare('SELECT COUNT(*) as count FROM posts WHERE category_id = ?').bind(id).first<number>('count');
 				if ((count ?? 0) > 0) {
-					return jsonResponse({ error: 'Cannot delete category with existing posts' }, 400);
+					return jsonResponse({ error: '该分类下有帖子，无法删除' }, 400);
 				}
 
 				await env.cforum_db.prepare('DELETE FROM categories WHERE id = ?').bind(id).run();
@@ -1468,8 +1468,8 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 				if (userPayload.role !== 'admin') return jsonResponse({ error: 'Unauthorized' }, 403);
 
 				const user = await env.cforum_db.prepare('SELECT * FROM users WHERE id = ?').bind(id).first<DBUser>();
-				if (!user) return jsonResponse({ error: 'User not found' }, 404);
-				if (user.verified) return jsonResponse({ error: 'User already verified' }, 400);
+				if (!user) return jsonResponse({ error: '用户不存在' }, 404);
+				if (user.verified) return jsonResponse({ error: '该用户已验证' }, 400);
 
 				// Generate new token if needed, or use existing
 				let token = user.verification_token;
@@ -1644,7 +1644,7 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 				// Validate category exists if provided
 				if (category_id) {
 					const category = await env.cforum_db.prepare('SELECT id FROM categories WHERE id = ?').bind(category_id).first();
-					if (!category) return jsonResponse({ error: 'Category not found' }, 404);
+					if (!category) return jsonResponse({ error: '分类不存在' }, 404);
 				}
 
 				await env.cforum_db.prepare('UPDATE posts SET category_id = ? WHERE id = ?').bind(category_id || null, id).run();
@@ -1750,12 +1750,12 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 				// Turnstile Check
 				const ip = request.headers.get('CF-Connecting-IP') || '127.0.0.1';
 				if (!(await checkTurnstile(body, ip))) {
-					return jsonResponse({ error: 'Turnstile verification failed' }, 403);
+					return jsonResponse({ error: '验证码验证失败' }, 403);
 				}
 
 				const { email, username, password, invitation_code } = body;
 				if (!email || !username || !password) {
-					return jsonResponse({ error: 'Missing email, username or password' }, 400);
+					return jsonResponse({ error: '请填写邮箱、昵称和密码' }, 400);
 				}
 
 				// Check invite-only mode
@@ -1767,21 +1767,21 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 					if (!code) return jsonResponse({ error: '邀请码无效或已过期' }, 400);
 				}
 
-				if (email.length > 50) return jsonResponse({ error: 'Email too long (Max 50 chars)' }, 400);
+				if (email.length > 50) return jsonResponse({ error: '邮箱过长（最多 50 个字符）' }, 400);
 
-				if (username.length > 20) return jsonResponse({ error: 'Username too long (Max 20 chars)' }, 400);
-				if (isVisuallyEmpty(username)) return jsonResponse({ error: 'Username cannot be empty' }, 400);
-				if (hasInvisibleCharacters(username)) return jsonResponse({ error: 'Username contains invalid invisible characters' }, 400);
-				if (hasControlCharacters(username)) return jsonResponse({ error: 'Username contains invalid control characters' }, 400);
-				if (hasRestrictedKeywords(username)) return jsonResponse({ error: 'Username contains restricted keywords' }, 400);
+				if (username.length > 20) return jsonResponse({ error: '昵称过长（最多 20 个字符）' }, 400);
+				if (isVisuallyEmpty(username)) return jsonResponse({ error: '昵称不能为空' }, 400);
+				if (hasInvisibleCharacters(username)) return jsonResponse({ error: '昵称包含不可见字符' }, 400);
+				if (hasControlCharacters(username)) return jsonResponse({ error: '昵称包含控制字符' }, 400);
+				if (hasRestrictedKeywords(username)) return jsonResponse({ error: '昵称包含敏感词' }, 400);
 
-				if (password.length < 8 || password.length > 16) return jsonResponse({ error: 'Password must be 8-16 characters' }, 400);
+				if (password.length < 8 || password.length > 16) return jsonResponse({ error: '密码长度需 8-16 个字符' }, 400);
 
 				// Check Uniqueness (Combined Query for Performance)
 				const existing = await env.cforum_db.prepare('SELECT email, username FROM users WHERE email = ? OR username = ?').bind(email, username).first();
 				if (existing) {
-					if (existing.email === email) return jsonResponse({ error: 'Email already exists' }, 409);
-					return jsonResponse({ error: 'Username already taken' }, 409);
+					if (existing.email === email) return jsonResponse({ error: '该邮箱已被注册' }, 409);
+					return jsonResponse({ error: '该昵称已被使用' }, 409);
 				}
 
 				const passwordHash = await hashPassword(password);
