@@ -66,19 +66,18 @@ renderer.image = (({ href, title, text }: { href: string; title?: string | null;
 }) as any;
 marked.use({ renderer, breaks: true, gfm: true });
 
-const INDENT_MARKER = '\uFFF0';
+const INDENT_MARKER = '<!--indent-->';
 
 export function renderMarkdownToHtml(markdown: string, r2PublicUrl?: string) {
 	currentR2PublicUrl = r2PublicUrl || '';
 	const windowLike = window as unknown as Window;
 	const DOMPurify = createDOMPurify(windowLike);
-	// 将行首的 \u3000（全角空格）替换为私有区字符 \uFFF0，
-	// 防止 marked 内部 trim() 将其删除。\uFFF0 不是空白字符，
-	// marked 原样保留，后续替换为 CSS text-indent。
-	const processed = markdown.replace(/^\u3000+/gm, (match) => INDENT_MARKER.repeat(match.length));
+	// 将行首 \u3000 替换为 HTML 注释标记，marked 透传、DOMPurify 保留，
+	// 绕过 marked 内部 trim() 吃掉全角空格的问题。
+	const processed = markdown.replace(/^\u3000+/gm, INDENT_MARKER);
 	let html = marked.parse(processed) as string;
-	// 段落开头的 \uFFF0+ → class="indent-paragraph"
-	html = html.replace(new RegExp(`<p>${INDENT_MARKER}+`, 'g'), '<p class="indent-paragraph">');
+	// <p><!--indent--> → <p class="indent-paragraph">
+	html = html.replace(new RegExp(`<p>${INDENT_MARKER.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'g'), '<p class="indent-paragraph">');
 	return DOMPurify.sanitize(html, {
 		ADD_TAGS: ['video', 'source', 'iframe'],
 		ADD_ATTR: ['allowfullscreen', 'frameborder', 'allow', 'referrerpolicy', 'target', 'rel', 'autoplay', 'muted', 'playsinline', 'preload']
