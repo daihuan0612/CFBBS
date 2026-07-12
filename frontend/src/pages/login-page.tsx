@@ -148,7 +148,7 @@ export function LoginPage() {
 							{error ? <div className="rounded-md border border-destructive/50 bg-destructive/5 p-3 text-sm text-destructive">{error}</div> : null}
 
 							<div className="space-y-2">
-								<Label htmlFor="login-name">用户名</Label>
+								<Label htmlFor="login-name">账号</Label>
 								<Input
 									id="login-name"
 									name="loginName"
@@ -210,7 +210,7 @@ export function LoginPage() {
 							{regSuccess ? <div className="rounded-md border bg-muted/40 p-3 text-sm">{regSuccess}</div> : null}
 
 							<div className="space-y-2">
-								<Label htmlFor="register-username">显示名称 (最多 20 字符)</Label>
+								<Label htmlFor="register-username">论坛昵称 (最多 20 字符)</Label>
 								<Input
 									id="register-username"
 									name="username"
@@ -223,7 +223,7 @@ export function LoginPage() {
 							</div>
 
 							<div className="space-y-2">
-								<Label htmlFor="register-login">登录用户名</Label>
+								<Label htmlFor="register-login">登录账号</Label>
 								<Input
 									id="register-login"
 									name="loginName"

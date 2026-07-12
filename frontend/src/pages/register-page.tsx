@@ -90,7 +90,7 @@ export function RegisterPage() {
 							</div>
 
 							<div className="space-y-2">
-								<Label htmlFor="register-email">登录用户名</Label>
+								<Label htmlFor="register-email">登录账号</Label>
 								<Input
 									id="register-email"
 									name="email"
