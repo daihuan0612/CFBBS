@@ -70,14 +70,18 @@ export function renderMarkdownToHtml(markdown: string, r2PublicUrl?: string) {
 	currentR2PublicUrl = r2PublicUrl || '';
 	const windowLike = window as unknown as Window;
 	const DOMPurify = createDOMPurify(windowLike);
-	// \u3000（全角空格）被 marked.trim() 吃掉 → 替换为 2 个 &nbsp;（HTML 实体，
-	// marked 不动、DOMPurify 保留、CSS 不折叠），实现首行缩进。
-	const processed = markdown.replace(/^\u3000+/gm, '&nbsp;&nbsp;');
+	// \u3000（全角空格）被 marked.trim() 吃掉
+	// 原理：先用纯 ASCII 标记 @@INDENT@@ 占位 → marked 当普通文本不碰它
+	// → DOMPurify 也不碰它 → 最后在 HTML 中用 CSS text-indent 实现缩进
+	const processed = markdown.replace(/^\u3000+/gm, '@@INDENT@@');
 	let html = marked.parse(processed) as string;
-	return DOMPurify.sanitize(html, {
+	html = DOMPurify.sanitize(html, {
 		ADD_TAGS: ['video', 'source', 'iframe'],
 		ADD_ATTR: ['allowfullscreen', 'frameborder', 'allow', 'referrerpolicy', 'target', 'rel', 'autoplay', 'muted', 'playsinline', 'preload']
 	});
+	// 把 <p>@@INDENT@@ 替换为带 CSS 缩进的 <p>
+	html = html.replace(/<p>@@INDENT@@/g, '<p style="text-indent:2em">');
+	return html;
 }
 
 export { resolveR2Url };
