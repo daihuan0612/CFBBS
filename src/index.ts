@@ -1998,13 +1998,14 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 					(post as any).liked = !!like;
 				}
 
-				// 设置 Last-Modified 响应头
-				const resp = jsonResponse(post);
-				const postUpdated = (post as any).updated_at as string | undefined;
-				if (postUpdated) {
-					resp.headers.set('Last-Modified', new Date(postUpdated).toUTCString());
-				}
-				return resp;
+				// 设置 Last-Modified + Cache-Control，浏览器缓存但每次用 If-Modified-Since 快速验证
+			const resp = jsonResponse(post);
+			const postUpdated = (post as any).updated_at as string | undefined;
+			if (postUpdated) {
+				resp.headers.set('Last-Modified', new Date(postUpdated).toUTCString());
+			}
+			resp.headers.set('Cache-Control', 'private, no-cache');
+			return resp;
 			} catch (e) {
 				return handleError(e);
 			}
