@@ -465,7 +465,7 @@ export function AdminPage() {
 								<div className="text-sm font-medium">邀请码列表</div>
 								<div className="overflow-x-auto rounded-md border max-h-60 overflow-y-auto">
 									<table className="w-full text-sm">
-										<thead className="bg-muted/30 text-left">
+										<thead className="bg-background text-left sticky top-0 z-10 shadow-sm">
 											<tr><th className="px-3 py-2">邀请码</th><th className="px-3 py-2">创建者</th><th className="px-3 py-2">状态</th><th className="px-3 py-2">使用人</th><th className="px-3 py-2">过期时间</th><th className="px-3 py-2">操作</th></tr>
 										</thead>
 										<tbody>
@@ -487,23 +487,38 @@ export function AdminPage() {
 									</div>
 									<Button onClick={createCategory} disabled={categorySaving}>添加</Button>
 								</div>
-								<div className="space-y-2 max-h-60 overflow-y-auto">
-									{categories.map((c) => (
-										<div key={c.id} className="flex items-center justify-between rounded-md border p-3 text-sm">
-											{editingCategoryId === c.id ? (
-												<Input value={editingCategoryName} onChange={(e) => setEditingCategoryName(e.target.value)} className="h-9 max-w-xs" />
-											) : <span>{c.name}</span>}
-											<div className="flex items-center gap-2">
-												{editingCategoryId === c.id ? (
-													<><Button variant="outline" size="sm" onClick={() => updateCategory(c.id)}>保存</Button><Button variant="outline" size="sm" onClick={() => { setEditingCategoryId(null); setEditingCategoryName(''); }}>取消</Button></>
-												) : (
-													<Button variant="outline" size="sm" onClick={() => { setEditingCategoryId(c.id); setEditingCategoryName(c.name); }}>编辑</Button>
-												)}
-												<Button variant="destructive" size="sm" onClick={() => deleteCategory(c.id)}>删除</Button>
-											</div>
-										</div>
-									))}
-									{categories.length === 0 ? <div className="text-sm text-muted-foreground">暂无分类</div> : null}
+								<div className="overflow-x-auto rounded-md border max-h-60 overflow-y-auto">
+									<table className="w-full text-sm">
+										<thead className="bg-background text-left sticky top-0 z-10 shadow-sm">
+											<tr>
+												<th className="px-3 py-2">分类名称</th>
+												<th className="px-3 py-2">操作</th>
+											</tr>
+										</thead>
+										<tbody>
+											{categories.length === 0 ? (
+												<tr><td colSpan={2} className="px-3 py-8 text-center text-sm text-muted-foreground">暂无分类</td></tr>
+											) : categories.map((c) => (
+												<tr key={c.id} className="border-t">
+													<td className="px-3 py-2">
+														{editingCategoryId === c.id ? (
+															<Input value={editingCategoryName} onChange={(e) => setEditingCategoryName(e.target.value)} className="h-9 max-w-xs" />
+														) : <span>{c.name}</span>}
+													</td>
+													<td className="px-3 py-2">
+														<div className="flex flex-wrap gap-2">
+															{editingCategoryId === c.id ? (
+																<><Button variant="outline" size="sm" onClick={() => updateCategory(c.id)}>保存</Button><Button variant="outline" size="sm" onClick={() => { setEditingCategoryId(null); setEditingCategoryName(''); }}>取消</Button></>
+															) : (
+																<Button variant="outline" size="sm" onClick={() => { setEditingCategoryId(c.id); setEditingCategoryName(c.name); }}>编辑</Button>
+															)}
+															<Button variant="destructive" size="sm" onClick={() => deleteCategory(c.id)}>删除</Button>
+														</div>
+													</td>
+												</tr>
+											))}
+										</tbody>
+									</table>
 								</div>
 							</CardContent>
 						</Card>
