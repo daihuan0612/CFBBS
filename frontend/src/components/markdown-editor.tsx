@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
-import { EditorView, keymap, placeholder } from '@codemirror/view';
+import { EditorView, keymap, placeholder, highlightSpecialChars } from '@codemirror/view';
 import { EditorState, Compartment } from '@codemirror/state';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
@@ -232,6 +232,7 @@ export function MarkdownEditor({ content, setContent, placeholder: ph, r2PublicU
 		const state = EditorState.create({
 			doc: content,
 			extensions: [
+				highlightSpecialChars(),
 				keymap.of([...defaultKeymap, ...historyKeymap]),
 				history(),
 				markdown({ base: markdownLanguage }),
@@ -437,6 +438,7 @@ export function MarkdownEditor({ content, setContent, placeholder: ph, r2PublicU
 					.cm-editor.cm-focused { outline: none; }
 					.cm-editor .cm-content { padding: 8px 0; }
 					.cm-editor .cm-line { padding: 0 4px; }
+					.cm-editor .cm-specialChar { color: #94a3b8; opacity: 0.5; }
 				`}</style>
 			</div>
 
