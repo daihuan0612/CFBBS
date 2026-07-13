@@ -37,8 +37,9 @@ function normalizeLang(lang: string) {
 
 let currentR2PublicUrl = '';
 
-// 首行缩进检测：\u3000（全角空格）不会被 marked 吞掉
-const INDENT_RE = /^\u3000+/;
+// 首行缩进检测：\u200B（零宽空格）+ \u3000（全角空格）
+// \u200B 防止 marked 吞掉文档开头的空白
+const INDENT_RE = /^\u200B?\u3000+/;
 
 const renderer = new marked.Renderer();
 renderer.code = (({ text, lang }: { text: string; lang?: string }) => {
@@ -68,7 +69,7 @@ renderer.image = (({ href, title, text }: { href: string; title?: string | null;
 	return `<a href="${src}" data-fancybox="gallery"${captionAttr}><img src="${src}" alt="${alt}" loading="lazy" referrerpolicy="no-referrer" /></a>`;
 }) as any;
 
-// 拦截 paragraph：检测行首 \u3000（全角空格），加 class 让 CSS 缩进
+// 拦截 paragraph：检测行首 \u200B+\u3000（零宽空格+全角空格），去掉标记加 class 让 CSS 缩进
 // marked 16.x: paragraph 接收 { type, text, tokens } 对象，用 marked.parseInline 处理行内元素
 const _origParagraph = renderer.paragraph.bind(renderer);
 renderer.paragraph = (({ text }: { text: string }) => {
@@ -89,8 +90,8 @@ export function renderMarkdownToHtml(markdown: string, r2PublicUrl?: string) {
 	const DOMPurify = createDOMPurify(windowLike);
 	// 编辑器按钮插入 \u3000\u3000（全角空格）→ 段落渲染器检测行首 \u3000，加 class="md-indent-paragraph"
 	// → CSS .md-indent-paragraph { text-indent: 2em } 实现缩进
-	// 全程不涉及字符层面缩进，不会被任何环节吃掉
-	const processed = markdown;
+	// \u200B（零宽空格）防止 marked 吞掉文档开头的 \u3000
+	const processed = markdown.replace(/^\u3000+/, '\u200B$&');
 	let html = marked.parse(processed) as string;
 	html = DOMPurify.sanitize(html, {
 		ADD_TAGS: ['video', 'source', 'iframe'],
