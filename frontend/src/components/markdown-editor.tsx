@@ -120,13 +120,13 @@ export function MarkdownEditor({ content, setContent, placeholder: ph, r2PublicU
 	const insertBold = useCallback(() => {
 		const view = viewRef.current;
 		if (!view) return;
+		view.focus();
 		const sel = view.state.selection.main;
 		const text = view.state.sliceDoc(sel.from, sel.to - sel.from) || '粗体文字';
 		view.dispatch({
 			changes: { from: sel.from, to: sel.to, insert: `**${text}**` },
 			selection: { anchor: sel.from + 2, head: sel.from + 2 + text.length }
 		});
-		view.focus();
 		setContent(view.state.doc.toString());
 	}, [setContent]);
 	const insertItalic = useCallback(() => wrapSelection('*', '*', '斜体'), [wrapSelection]);
