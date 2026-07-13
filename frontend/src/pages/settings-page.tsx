@@ -18,6 +18,7 @@ export function SettingsPage() {
 	const [uploading, setUploading] = React.useState(false);
 	const [totpLoading, setTotpLoading] = React.useState(false);
 	const [deleting, setDeleting] = React.useState(false);
+	const [changingPw, setChangingPw] = React.useState(false);
 	const [error, setError] = React.useState('');
 
 	const [username, setUsername] = React.useState(user?.username || '');
@@ -30,6 +31,11 @@ export function SettingsPage() {
 
 	const [deletePassword, setDeletePassword] = React.useState('');
 	const [deleteTotp, setDeleteTotp] = React.useState('');
+
+	const [changeCurrentPw, setChangeCurrentPw] = React.useState('');
+	const [changeNewPw, setChangeNewPw] = React.useState('');
+
+	const isAdmin = user?.role === 'admin';
 
 	React.useEffect(() => {
 		if (!user) {
@@ -137,6 +143,30 @@ export function SettingsPage() {
 		}
 	}
 
+	async function changePassword() {
+		if (!user) return;
+		setError('');
+		if (!changeCurrentPw || !changeNewPw) return setError('请填写当前密码和新密码');
+		if (changeNewPw.length < 8 || changeNewPw.length > 16) return setError('新密码长度需 8-16 个字符');
+		if (changeCurrentPw === changeNewPw) return setError('新密码不能与当前密码相同');
+
+		setChangingPw(true);
+		try {
+			await apiFetch('/user/change-password', {
+				method: 'POST',
+				headers: getSecurityHeaders('POST'),
+				body: JSON.stringify({ current_password: changeCurrentPw, new_password: changeNewPw }),
+			});
+			setChangeCurrentPw('');
+			setChangeNewPw('');
+			alert('密码已修改');
+		} catch (e: any) {
+			setError(String(e?.message || e));
+		} finally {
+			setChangingPw(false);
+		}
+	}
+
 	async function deleteAccount() {
 		if (!user) return;
 		setError('');
@@ -217,6 +247,37 @@ export function SettingsPage() {
 
 				<Card>
 					<CardHeader>
+						<CardTitle>修改密码</CardTitle>
+					</CardHeader>
+					<CardContent className="space-y-4">
+						<div className="grid gap-4 sm:grid-cols-2">
+							<div className="space-y-2">
+								<Label htmlFor="change-current-pw">当前密码</Label>
+								<Input
+									id="change-current-pw"
+									type="password"
+									value={changeCurrentPw}
+									onChange={(e) => setChangeCurrentPw(e.target.value)}
+								/>
+							</div>
+							<div className="space-y-2">
+								<Label htmlFor="change-new-pw">新密码 (8-16 字符)</Label>
+								<Input
+									id="change-new-pw"
+									type="password"
+									value={changeNewPw}
+									onChange={(e) => setChangeNewPw(e.target.value)}
+								/>
+							</div>
+						</div>
+						<Button onClick={changePassword} disabled={changingPw}>
+							{changingPw ? '修改中...' : '修改密码'}
+						</Button>
+					</CardContent>
+				</Card>
+
+				<Card>
+					<CardHeader>
 						<CardTitle>双重验证 (2FA)</CardTitle>
 					</CardHeader>
 					<CardContent className="space-y-4">
@@ -255,41 +316,43 @@ export function SettingsPage() {
 					</CardContent>
 				</Card>
 
-				<Card className="border-destructive/40">
-					<CardHeader>
-						<CardTitle className="text-destructive">危险区域</CardTitle>
-					</CardHeader>
-					<CardContent className="space-y-4">
-						<div className="text-sm text-muted-foreground">删除账号后无法恢复。</div>
-						<div className="grid gap-4 sm:grid-cols-2">
-							<div className="space-y-2">
-								<Label htmlFor="delete-password">密码</Label>
-								<Input
-									id="delete-password"
-									type="password"
-									autoComplete="current-password"
-									value={deletePassword}
-									onChange={(e) => setDeletePassword(e.target.value)}
-								/>
+				{isAdmin ? (
+					<Card className="border-destructive/40">
+						<CardHeader>
+							<CardTitle className="text-destructive">危险区域</CardTitle>
+						</CardHeader>
+						<CardContent className="space-y-4">
+							<div className="text-sm text-muted-foreground">删除账号后无法恢复。</div>
+							<div className="grid gap-4 sm:grid-cols-2">
+								<div className="space-y-2">
+									<Label htmlFor="delete-password">密码</Label>
+									<Input
+										id="delete-password"
+										type="password"
+										autoComplete="current-password"
+										value={deletePassword}
+										onChange={(e) => setDeletePassword(e.target.value)}
+									/>
+								</div>
+								<div className="space-y-2">
+									<Label htmlFor="delete-totp">双重验证码 (若开启)</Label>
+									<Input
+										id="delete-totp"
+										type="text"
+										inputMode="numeric"
+										maxLength={6}
+										autoComplete="one-time-code"
+										value={deleteTotp}
+										onChange={(e) => setDeleteTotp(e.target.value)}
+									/>
+								</div>
 							</div>
-							<div className="space-y-2">
-								<Label htmlFor="delete-totp">双重验证码 (若开启)</Label>
-								<Input
-									id="delete-totp"
-									type="text"
-									inputMode="numeric"
-									maxLength={6}
-									autoComplete="one-time-code"
-									value={deleteTotp}
-									onChange={(e) => setDeleteTotp(e.target.value)}
-								/>
-							</div>
-						</div>
-						<Button variant="destructive" onClick={deleteAccount} disabled={deleting}>
-							{deleting ? '处理中...' : '删除账号'}
-						</Button>
-					</CardContent>
-				</Card>
+							<Button variant="destructive" onClick={deleteAccount} disabled={deleting}>
+								{deleting ? '处理中...' : '删除账号'}
+							</Button>
+						</CardContent>
+					</Card>
+				) : null}
 			</div>
 		</PageShell>
 	);

@@ -922,6 +922,51 @@ export default {
 			}
 		}
 
+		// POST /api/user/change-password
+		if (url.pathname === '/api/user/change-password' && method === 'POST') {
+			try {
+				const userPayload = await authenticate(request);
+				const body = await request.json() as any;
+				const { current_password, new_password } = body;
+
+				if (!current_password || !new_password) return jsonResponse({ error: '请输入当前密码和新密码' }, 400);
+				if (new_password.length < 8 || new_password.length > 16) return jsonResponse({ error: '密码长度需 8-16 个字符' }, 400);
+
+				const user_id = userPayload.id;
+				const user = await env.cforum_db.prepare('SELECT * FROM users WHERE id = ?').bind(user_id).first<DBUser>();
+				if (!user) return jsonResponse({ error: '用户不存在' }, 404);
+
+				// 验证当前密码
+				const currentHash = await hashPassword(current_password);
+				if (user.password !== currentHash) {
+					return jsonResponse({ error: '当前密码错误' }, 401);
+				}
+
+				// 检查新密码是否与旧密码相同（用密码历史表检查重复）
+				const lastUsed = await env.cforum_db.prepare(
+					"SELECT password_hash FROM password_history WHERE user_id = ? ORDER BY changed_at DESC LIMIT 1"
+				).bind(user_id).first();
+				const newHash = await hashPassword(new_password);
+				if (lastUsed && lastUsed.password_hash === newHash) {
+					return jsonResponse({ error: '新密码不能与上次使用的密码相同' }, 400);
+				}
+
+				// 记录旧密码到历史
+				await env.cforum_db.prepare(
+					"INSERT INTO password_history (user_id, password_hash, changed_at) VALUES (?, ?, ?)"
+				).bind(user_id, user.password, Date.now() / 1000).run();
+
+				// 更新密码
+				await env.cforum_db.prepare('UPDATE users SET password = ? WHERE id = ?').bind(newHash, user_id).run();
+
+				await security.logAudit(user_id, 'CHANGE_PASSWORD', 'user', String(user_id), {}, request);
+
+				return jsonResponse({ success: true });
+			} catch (e) {
+				return handleError(e);
+			}
+		}
+
 		// POST /api/user/totp/setup
 		if (url.pathname === '/api/user/totp/setup' && method === 'POST') {
 			try {
@@ -1841,13 +1886,13 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 			}
 		}
 
-		// GET /users
+		// GET /api/users — 管理后台用，不缓存
 		if (url.pathname === '/api/users' && method === 'GET') {
 			try {
 				const { results } = await env.cforum_db.prepare(
 					'SELECT id, email, username, created_at FROM users'
 				).all();
-				return jsonResponse(results);
+				return jsonResponse(results, { cacheControl: 'no-store, private' });
 			} catch (e) {
 				return handleError(e);
 			}
