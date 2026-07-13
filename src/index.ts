@@ -120,6 +120,27 @@ export default {
 		const url = new URL(request.url);
 		const method = request.method;
 
+		// ── Block crawlers (private forum) ──
+		const blockedBots = [
+			'bot', 'crawl', 'spider', 'scrape', 'scraper', 'fetch', 'scan',
+			'googlebot', 'bingbot', 'yandex', 'baiduspider', 'duckduckbot',
+			'slurp', 'teoma', 'facebookexternalhit', 'twitterbot',
+			'ahrefsbot', 'semrushbot', 'mj12bot', 'dotbot',
+			'archive.org_bot', 'python-requests', 'go-http-client',
+			'curl/', 'wget', 'http-client', 'okhttp', 'java/',
+		];
+		const ua = (request.headers.get('User-Agent') || '').toLowerCase();
+		if (blockedBots.some(b => ua.includes(b)) && !url.pathname.startsWith('/api/login')) {
+			return new Response('Forbidden', { status: 403 });
+		}
+
+		// robots.txt
+		if (url.pathname === '/robots.txt') {
+			return new Response('User-agent: *\nDisallow: /\n', {
+				headers: { 'Content-Type': 'text/plain' }
+			});
+		}
+
 		// Helper function to get base URL
 		const getBaseUrl = () => {
 			// Priority: 1. Env var 2. X-Original-URL header (from Pages Functions) 3. Request origin
@@ -203,8 +224,8 @@ export default {
 			const headers = new Headers();
 			object.writeHttpMetadata(headers);
 			if (object.httpEtag) headers.set('etag', object.httpEtag);
-			headers.set('Cache-Control', 'public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800');
-			headers.set('CDN-Cache-Control', 'public, max-age=86400');
+			headers.set('Cache-Control', 'public, max-age=604800, s-maxage=604800, stale-while-revalidate=2592000');
+			headers.set('CDN-Cache-Control', 'public, max-age=604800');
 			headers.set('Access-Control-Allow-Origin', getCorsOrigin());
 			return new Response(method === 'HEAD' ? null : object.body, { headers });
 		}
@@ -2524,7 +2545,18 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 			const assetUrl = new URL(request.url);
 			assetUrl.pathname = mapped;
 			const assetRes = await (env as any).ASSETS.fetch(new Request(assetUrl, request));
-			if (assetRes.status !== 404) return assetRes;
+			if (assetRes.status !== 404) {
+				const resp = new Response(assetRes.body, assetRes);
+				// HTML: no-index, no-follow
+				if (mapped.endsWith('.html')) {
+					resp.headers.set('X-Robots-Tag', 'noindex, nofollow');
+				}
+				// JS/CSS/fonts with content hash: cache forever, no revalidation
+				if (/\.(js|css|woff2?|ttf|eot|svg|png|jpg|jpeg|webp|avif|ico)$/i.test(mapped)) {
+					resp.headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+				}
+				return resp;
+			}
 			if (mapped !== pathname) {
 				const directRes = await (env as any).ASSETS.fetch(request);
 				if (directRes.status !== 404) return directRes;
