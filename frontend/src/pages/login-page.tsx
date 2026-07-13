@@ -26,6 +26,7 @@ export function LoginPage() {
 	const [regUsername, setRegUsername] = React.useState('');
 	const [regLoginName, setRegLoginName] = React.useState('');
 	const [regPassword, setRegPassword] = React.useState('');
+	const [regConfirmPassword, setRegConfirmPassword] = React.useState('');
 	const [invitationCode, setInvitationCode] = React.useState('');
 	const [regTurnstileToken, setRegTurnstileToken] = React.useState('');
 	const [regTurnstileResetKey, setRegTurnstileResetKey] = React.useState(0);
@@ -82,6 +83,10 @@ export function LoginPage() {
 		e.preventDefault();
 		setRegError('');
 		setRegSuccess('');
+		if (regPassword !== regConfirmPassword) {
+			setRegError('两次输入的密码不一致');
+			return;
+		}
 		if (turnstileActive && !regTurnstileToken) {
 			setRegError('请完成验证码验证');
 			return;
@@ -89,7 +94,7 @@ export function LoginPage() {
 
 		setRegLoading(true);
 		try {
-			const body: any = { email: regLoginName, username: regUsername, password: regPassword, 'cf-turnstile-response': regTurnstileToken };
+			const body: any = { email: regLoginName, username: regUsername, password: regPassword, confirm_password: regConfirmPassword, 'cf-turnstile-response': regTurnstileToken };
 			if (inviteOnly) body.invitation_code = invitationCode;
 
 			const res = await fetch(`${API_BASE}/register`, {
@@ -108,6 +113,7 @@ export function LoginPage() {
 			setRegUsername('');
 			setRegLoginName('');
 			setRegPassword('');
+			setRegConfirmPassword('');
 			setInvitationCode('');
 			setRegTurnstileToken('');
 			setRegTurnstileResetKey((v) => v + 1);
@@ -244,6 +250,18 @@ export function LoginPage() {
 									autoComplete="new-password"
 									value={regPassword}
 									onChange={(e) => setRegPassword(e.target.value)}
+									required
+								/>
+							</div>
+
+							<div className="space-y-2">
+								<Label htmlFor="register-confirm-password">确认密码</Label>
+								<Input
+									id="register-confirm-password"
+									type="password"
+									autoComplete="new-password"
+									value={regConfirmPassword}
+									onChange={(e) => setRegConfirmPassword(e.target.value)}
 									required
 								/>
 							</div>
