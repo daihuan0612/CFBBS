@@ -69,20 +69,12 @@ renderer.image = (({ href, title, text }: { href: string; title?: string | null;
 	return `<a href="${src}" data-fancybox="gallery"${captionAttr}><img src="${src}" alt="${alt}" loading="lazy" referrerpolicy="no-referrer" /></a>`;
 }) as any;
 
-// 拦截 paragraph：检测行首 \u200B+\u3000（零宽空格+全角空格），去掉标记加 class 让 CSS 缩进
-// marked 16.x: paragraph 接收 { type, text, tokens } 对象，用 marked.parseInline 处理行内元素
-// 启用 breaks:true，单次 \n 转 <br>，保留小说等粘贴内容的换行
-function paragraphWithBreaks(text: string): string {
-	const withBreaks = text.replace(/\n/g, '<br>\n');
-	return marked.parseInline(withBreaks);
-}
-
 renderer.paragraph = (({ text }: { text: string }) => {
 	if (INDENT_RE.test(text)) {
 		const content = text.replace(INDENT_RE, '');
-		return `<p class="md-indent-paragraph">${paragraphWithBreaks(content)}</p>`;
+		return `<p class="md-indent-paragraph">${marked.parseInline(content)}</p>`;
 	}
-	return `<p>${paragraphWithBreaks(text)}</p>`;
+	return `<p>${marked.parseInline(text)}</p>`;
 }) as any;
 
 marked.use({ renderer, breaks: true, gfm: true });
