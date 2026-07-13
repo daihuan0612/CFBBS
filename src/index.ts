@@ -174,10 +174,10 @@ export default {
 			} else {
 				// 缓存策略: GET 请求按路径区分缓存时间
 				const cacheablePaths: [string, string][] = [
-					['/api/posts', 'public, max-age=120'],
-					['/api/users', 'public, max-age=60'],
+					['/api/posts', 'public, max-age=120, stale-while-revalidate=3600'],
+					['/api/users', 'public, max-age=60, stale-while-revalidate=600'],
 				];
-				const matched = method === 'GET' && status < 400 ? cacheablePaths.find(([p]) => url.pathname === p || url.pathname === p + '/') : undefined;
+				const matched = method === 'GET' && status < 400 ? cacheablePaths.find(([p]) => url.pathname.startsWith(p)) : undefined;
 				if (matched) {
 					headers.set('Cache-Control', matched[1]);
 				} else if (method === 'GET' && status < 400) {
@@ -491,13 +491,6 @@ export default {
             '/api/posts', '/api/categories', '/api/users'
         ];
 
-        // Relax check for public GETs that don't need nonce
-        const isPublicGet = method === 'GET' && (
-            publicPaths.includes(url.pathname) ||
-            url.pathname.match(/^\/api\/posts\/\d+$/) ||
-            url.pathname.match(/^\/api\/posts\/\d+\/comments$/)
-        );
-
         // However, user specifically asked for "Replay protection for sensitive operations".
         // We will apply strict checks for mutation methods (POST, PUT, DELETE)
         if (['POST', 'PUT', 'DELETE'].includes(method)) {
@@ -686,7 +679,7 @@ export default {
 				}
 
 				const user = await env.cforum_db
-					.prepare('SELECT * FROM users WHERE email = ?')
+					.prepare('SELECT id, email, username, password, role, verified, totp_secret, totp_enabled, avatar_url, email_notifications FROM users WHERE email = ?')
 					.bind(email)
 					.first<DBUser>();
 				if (!user) {
@@ -770,7 +763,7 @@ export default {
 				}
 
 				// Fetch current user
-				const currentUser = await env.cforum_db.prepare('SELECT * FROM users WHERE id = ?').bind(user_id).first<DBUser>();
+				const currentUser = await env.cforum_db.prepare('SELECT id, email, username, avatar_url, role, totp_enabled, email_notifications, nickname, password FROM users WHERE id = ?').bind(user_id).first<DBUser>();
 				if (!currentUser) return jsonResponse({ error: '用户不存在' }, 404);
 
 				let newUsername = currentUser.username;
@@ -802,14 +795,14 @@ export default {
 				if (username !== undefined && username !== currentUser.username) {
 					const setting = await env.cforum_db.prepare("SELECT value FROM settings WHERE key = 'notify_on_username_change'").first<DBSetting>();
 					if (setting && setting.value === '1') {
-						createNotification(userPayload.id, 'username_changed', '用户名已修改', `您的用户名已从 "${currentUser.username}" 修改为 "${username}"。`);
+						ctx.waitUntil(createNotification(userPayload.id, 'username_changed', '用户名已修改', `您的用户名已从 "${currentUser.username}" 修改为 "${username}"。`));
 					}
 				}
 
 				if (avatar_url !== undefined && avatar_url !== currentUser.avatar_url) {
 					const setting = await env.cforum_db.prepare("SELECT value FROM settings WHERE key = 'notify_on_avatar_change'").first<DBSetting>();
 					if (setting && setting.value === '1') {
-						createNotification(userPayload.id, 'avatar_changed', '头像已修改', '您的头像已成功更新。');
+						ctx.waitUntil(createNotification(userPayload.id, 'avatar_changed', '头像已修改', '您的头像已成功更新。'));
 					}
 				}
 
@@ -1300,16 +1293,13 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 					isAdmin = admin.role === 'admin';
 				} catch { /* not logged in or not admin */ }
 
-				const cacheKey = 'categories_' + (isAdmin ? 'admin' : 'user');
-				const { results } = await getFromCache(cacheKey, 3_600_000, () =>
-					env.cforum_db.prepare(
-						isAdmin
-							? 'SELECT * FROM categories ORDER BY created_at ASC'
-							: "SELECT id, name, created_at FROM categories WHERE name != '公告' ORDER BY created_at ASC"
-					).all<any>()
-				);
+				const { results } = await env.cforum_db.prepare(
+					isAdmin
+						? 'SELECT * FROM categories ORDER BY created_at ASC'
+						: "SELECT id, name, created_at FROM categories WHERE name != '公告' ORDER BY created_at ASC"
+				).all<any>();
 				const resp = jsonResponse(results);
-				resp.headers.set('Cache-Control', 'public, max-age=3600');
+				resp.headers.set('Cache-Control', isAdmin ? 'no-store, private' : 'public, max-age=86400, stale-while-revalidate=604800');
 				return resp;
 			} catch (e) {
 				return handleError(e);
@@ -1509,7 +1499,7 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 					const user = await env.cforum_db.prepare('SELECT email, username FROM users WHERE id = ?').bind(id).first<{email:string;username:string}>();
 					if (!user) throw new Error('User unexpectedly missing');
 					// Send notification to the verified user
-					createNotification(parseInt(id), 'manual_verified', '账户已验证', `您的账户（${user.username}）已通过管理员手动验证。`, userPayload.id);
+					ctx.waitUntil(createNotification(parseInt(id), 'manual_verified', '账户已验证', `您的账户（${user.username}）已通过管理员手动验证。`, userPayload.id));
 				}
 
 				return jsonResponse({ success });
@@ -1620,10 +1610,10 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 					const username = userToDelete?.username || '';
 					const admins = await env.cforum_db.prepare("SELECT id FROM users WHERE role = 'admin' AND id != ?").bind(userPayload.id).all<{id:number}>();
 					for (const admin of admins.results) {
-						createNotification(admin.id, 'account_deleted', '用户已删除', `用户 ${email || username}（ID: ${id}）已被管理员删除。`, userPayload.id);
+						ctx.waitUntil(createNotification(admin.id, 'account_deleted', '用户已删除', `用户 ${email || username}（ID: ${id}）已被管理员删除。`, userPayload.id));
 					}
 					// Also notify the acting admin as confirmation
-					createNotification(userPayload.id, 'account_deleted', '用户已删除', `您已成功删除用户 ${email || username}（ID: ${id}）。`, userPayload.id);
+					ctx.waitUntil(createNotification(userPayload.id, 'account_deleted', '用户已删除', `您已成功删除用户 ${email || username}（ID: ${id}）。`, userPayload.id));
 				}
 
 				return jsonResponse({ success: true });
@@ -1693,7 +1683,7 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 				// Notify post author
 				const post = await env.cforum_db.prepare('SELECT author_id, title FROM posts WHERE id = ?').bind(id).first<{author_id: number; title: string}>();
 				if (post && post.author_id !== userPayload.id) {
-					createNotification(post.author_id, 'post_pinned', '帖子已置顶', `你的帖子「${post.title?.slice(0, 30) || '无标题'}」已被${pinned ? '置顶' : '取消置顶'}。`, userPayload.id);
+					ctx.waitUntil(createNotification(post.author_id, 'post_pinned', '帖子已置顶', `你的帖子「${post.title?.slice(0, 30) || '无标题'}」已被${pinned ? '置顶' : '取消置顶'}。`, userPayload.id));
 				}
 
 				return jsonResponse({ success: true });
@@ -1764,7 +1754,7 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 					total_files: allKeys.length,
 					used_files: usedKeys.size,
 					orphaned_files: orphans.length,
-					orphans: orphans
+					orphans: orphans.slice(0, 100)
 				}, 200, 'no-store, private');
 
 			} catch (e) {
@@ -1950,7 +1940,7 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 				const sortDir = sortDirRaw === 'asc' ? 'ASC' : 'DESC';
 
 				let query = `SELECT
-                        posts.*,
+                        posts.id, posts.title, posts.author_id, posts.category_id, posts.is_pinned, posts.view_count, posts.created_at,
                         users.username as author_name,
                         users.avatar_url as author_avatar,
                         users.role as author_role,
@@ -2272,7 +2262,7 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 				const post = await env.cforum_db.prepare('SELECT author_id, title FROM posts WHERE id = ?').bind(postId).first<{author_id: number; title: string}>();
 				if (post && post.author_id !== userId) {
 					const liker = await env.cforum_db.prepare('SELECT username FROM users WHERE id = ?').bind(userId).first<{username: string}>();
-					createNotification(post.author_id, 'post_liked', '点赞通知', `${liker?.username || '某用户'} 赞了你的帖子「${post.title?.slice(0, 30) || '无标题'}」`, userId);
+					ctx.waitUntil(createNotification(post.author_id, 'post_liked', '点赞通知', `${liker?.username || '某用户'} 赞了你的帖子「${post.title?.slice(0, 30) || '无标题'}」`, userId));
 				}
 
 				return jsonResponse({ liked: true });
@@ -2327,7 +2317,6 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 				if (hasControlCharacters(title) || hasControlCharacters(content)) return jsonResponse({ error: 'Title or content contains invalid control characters' }, 400);
 
 				// 内容直接存储，前端 DOMPurify 负责安全过滤
-				content = rawContent;
 
 				// Validate Title (simple trim, no HTML escaping needed)
 				const safeTitle = title.trim();
