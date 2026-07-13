@@ -953,7 +953,7 @@ export default {
 
 				// 检查新密码是否与旧密码相同（用密码历史表检查重复）
 				const lastUsed = await env.cforum_db.prepare(
-					"SELECT password_hash FROM password_history WHERE user_id = ? ORDER BY changed_at DESC LIMIT 1"
+					"SELECT password_hash FROM password_history WHERE user_id = ? ORDER BY created_at DESC LIMIT 1"
 				).bind(user_id).first();
 				const newHash = await hashPassword(new_password);
 				if (lastUsed && lastUsed.password_hash === newHash) {
@@ -962,7 +962,7 @@ export default {
 
 				// 记录旧密码到历史
 				await env.cforum_db.prepare(
-					"INSERT INTO password_history (user_id, password_hash, changed_at) VALUES (?, ?, ?)"
+					"INSERT INTO password_history (user_id, password_hash, created_at) VALUES (?, ?, ?)"
 				).bind(user_id, user.password, Date.now() / 1000).run();
 
 				// 更新密码
