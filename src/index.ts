@@ -2137,7 +2137,7 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 
 				await env.cforum_db.prepare(
 					'UPDATE posts SET title = ?, content = ?, category_id = ? WHERE id = ?'
-				).bind(title.trim(), content.trim(), category_id || null, postId).run();
+				).bind(title.trim(), content.replace(/^[\t\n\r ]+/, '').replace(/[\t\n\r ]+$/, ''), category_id || null, postId).run();
 
 				await security.logAudit(userPayload.id, 'UPDATE_POST', 'post', postId, { title_length: title.length }, request);
 
@@ -2352,7 +2352,7 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 
 				const { success } = await env.cforum_db.prepare(
 					'INSERT INTO posts (author_id, title, content, category_id) VALUES (?, ?, ?, ?)'
-				).bind(userPayload.id, safeTitle.trim(), content.trim(), category_id || null).run();
+				).bind(userPayload.id, safeTitle.trim(), content.replace(/^[\t\n\r ]+/, '').replace(/[\t\n\r ]+$/, ''), category_id || null).run();
 
 				await security.logAudit(userPayload.id, 'CREATE_POST', 'post', 'new', { title_length: safeTitle.length }, request);
 
