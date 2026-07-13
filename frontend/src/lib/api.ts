@@ -52,10 +52,8 @@ export type Comment = {
 	created_at: string;
 };
 
-// __WORKER_URL__ is replaced at build time by CI with the real Worker URL
-// In local dev (empty string), falls back to relative /api paths
-const WORKER_URL = '__WORKER_URL__';
-export const API_BASE = WORKER_URL.startsWith('http') ? `${WORKER_URL}/api` : '/api';
+// API_BASE uses relative path so adblockers don't block api.* subdomain requests
+export const API_BASE = '/api';
 
 export function getSecurityHeaders(method: string, contentType: string | null = 'application/json') {
 	const headers: Record<string, string> = {};
