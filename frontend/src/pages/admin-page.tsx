@@ -517,7 +517,7 @@ export function AdminPage() {
 							<CardContent className="space-y-3">
 								<div className="overflow-x-auto rounded-md border max-h-60 overflow-y-auto">
 									<table className="w-full text-sm">
-										<thead className="bg-muted/30 text-left sticky top-0">
+										<thead className="bg-background text-left sticky top-0 z-10 shadow-sm">
 											<tr>
 												<th className="px-3 py-2">ID</th>
 												<th className="px-3 py-2">昵称</th>
