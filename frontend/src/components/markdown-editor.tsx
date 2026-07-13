@@ -117,14 +117,19 @@ export function MarkdownEditor({ content, setContent, placeholder: ph, r2PublicU
 
 	// --- Toolbar actions ---
 
-	const insertBold = useCallback(() => wrapSelection('**', '**', '粗体'), [wrapSelection]);
+	const insertBold = useCallback(() => {
+		const view = viewRef.current;
+		if (!view) return;
+		const sel = view.state.selection.main;
+		const text = view.state.sliceDoc(sel.from, sel.to - sel.from) || '粗体文字';
+		view.dispatch({
+			changes: { from: sel.from, to: sel.to, insert: `**${text}**` },
+			selection: { anchor: sel.from + 2, head: sel.from + 2 + text.length }
+		});
+		view.focus();
+		setContent(view.state.doc.toString());
+	}, [setContent]);
 	const insertItalic = useCallback(() => wrapSelection('*', '*', '斜体'), [wrapSelection]);
-	const insertHeading = useCallback(() => {
-		const sel = getSelection();
-		if (!sel) return;
-		const text = sel.text || '标题';
-		replaceSelection(`## ${text}`);
-	}, [getSelection, replaceSelection]);
 	const insertLink = useCallback(() => {
 		const sel = getSelection();
 		if (!sel) return;
@@ -380,8 +385,6 @@ export function MarkdownEditor({ content, setContent, placeholder: ph, r2PublicU
 					onClick={insertBold}><i className="ri-bold text-sm leading-none" /></Button>
 				<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="斜体 Ctrl+I"
 					onClick={insertItalic}><i className="ri-italic text-sm leading-none" /></Button>
-				<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="标题"
-					onClick={insertHeading}><i className="ri-heading text-sm leading-none" /></Button>
 				<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="链接 Ctrl+K"
 					onClick={insertLink}><i className="ri-link text-sm leading-none" /></Button>
 				<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="引用"
@@ -399,8 +402,6 @@ export function MarkdownEditor({ content, setContent, placeholder: ph, r2PublicU
 				<span className="mx-1 h-5 w-px bg-border" />
 				<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="居中"
 					onClick={insertCenter}><i className="ri-align-center text-sm leading-none" /></Button>
-				<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="增加缩进"
-					onClick={insertIndent}><i className="ri-indent-increase text-sm leading-none" /></Button>
 				<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="首行缩进（全角空格）"
 					onClick={insertParagraphIndent}>
 					<i className="ri-indent-decrease text-sm leading-none" />
