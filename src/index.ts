@@ -1467,14 +1467,14 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 			}
 		}
 
-		// GET /api/admin/users
+		// GET /api/admin/users — 管理后台用，不缓存
 		if (url.pathname === '/api/admin/users' && method === 'GET') {
 			try {
 				const userPayload = await authenticate(request);
 				if (userPayload.role !== 'admin') return jsonResponse({ error: 'Unauthorized' }, 403);
 
 				const { results } = await env.cforum_db.prepare('SELECT id, email, username, role, verified, created_at, avatar_url FROM users ORDER BY created_at DESC').all();
-				return jsonResponse(results);
+				return jsonResponse(results, 200, 'no-store, private');
 			} catch (e) {
 				return handleError(e);
 			}
@@ -1546,11 +1546,15 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 		}
 
 		// DELETE /api/admin/users/:id
-		if (url.pathname.startsWith('/api/admin/users/') && method === 'DELETE') {
+		if (url.pathname.match(/^\/api\/admin\/users\/\d+$/) && method === 'DELETE') {
 			const id = url.pathname.split('/').pop();
 			try {
 				const userPayload = await authenticate(request);
 				if (userPayload.role !== 'admin') return jsonResponse({ error: 'Unauthorized' }, 403);
+
+				// 检查用户是否存在（防止已自删用户还在列表中）
+				const existingUser = await env.cforum_db.prepare('SELECT id FROM users WHERE id = ?').bind(id).first();
+				if (!existingUser) return jsonResponse({ error: '用户不存在或已被删除' }, 404);
 
 				// 0. Delete user avatar and post images
 				const user = await env.cforum_db.prepare('SELECT avatar_url FROM users WHERE id = ?').bind(id).first<{avatar_url?: string}>();

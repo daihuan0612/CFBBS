@@ -487,7 +487,7 @@ export function AdminPage() {
 									</div>
 									<Button onClick={createCategory} disabled={categorySaving}>添加</Button>
 								</div>
-								<div className="space-y-2">
+								<div className="space-y-2 max-h-60 overflow-y-auto">
 									{categories.map((c) => (
 										<div key={c.id} className="flex items-center justify-between rounded-md border p-3 text-sm">
 											{editingCategoryId === c.id ? (
@@ -515,9 +515,9 @@ export function AdminPage() {
 								<p className="text-sm text-muted-foreground">【功能说明】管理所有用户账号。点击【重置密码】可为用户生成一个24小时有效的临时密码，系统会展示明文密码供你转发给用户。</p>
 							</CardHeader>
 							<CardContent className="space-y-3">
-								<div className="overflow-x-auto rounded-md border">
+								<div className="overflow-x-auto rounded-md border max-h-60 overflow-y-auto">
 									<table className="w-full text-sm">
-										<thead className="bg-muted/30 text-left">
+										<thead className="bg-muted/30 text-left sticky top-0">
 											<tr>
 												<th className="px-3 py-2">ID</th>
 												<th className="px-3 py-2">昵称</th>
