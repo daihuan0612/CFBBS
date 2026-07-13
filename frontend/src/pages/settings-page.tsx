@@ -148,6 +148,7 @@ export function SettingsPage() {
 		if (!user) return;
 		setError('');
 		if (!changeCurrentPw || !changeNewPw) return setError('请填写当前密码和新密码');
+		if (changeNewPw !== changeNewPwConfirm) return setError('两次输入的新密码不一致');
 		if (changeNewPw.length < 8 || changeNewPw.length > 16) return setError('新密码长度需 8-16 个字符');
 		if (changeCurrentPw === changeNewPw) return setError('新密码不能与当前密码相同');
 
@@ -252,25 +253,23 @@ export function SettingsPage() {
 						<CardTitle>修改密码</CardTitle>
 					</CardHeader>
 					<CardContent className="space-y-4">
-						<div className="grid gap-4 sm:grid-cols-2">
-							<div className="space-y-2">
-								<Label htmlFor="change-current-pw">当前密码</Label>
-								<Input
-									id="change-current-pw"
-									type="password"
-									value={changeCurrentPw}
-									onChange={(e) => setChangeCurrentPw(e.target.value)}
-								/>
-							</div>
-							<div className="space-y-2">
-								<Label htmlFor="change-new-pw">新密码 (8-16 字符)</Label>
-								<Input
-									id="change-new-pw"
-									type="password"
-									value={changeNewPw}
-									onChange={(e) => setChangeNewPw(e.target.value)}
-								/>
-							</div>
+						<div className="space-y-2">
+							<Label htmlFor="change-current-pw">当前密码</Label>
+							<Input
+								id="change-current-pw"
+								type="password"
+								value={changeCurrentPw}
+								onChange={(e) => setChangeCurrentPw(e.target.value)}
+							/>
+						</div>
+						<div className="space-y-2">
+							<Label htmlFor="change-new-pw">新密码 (8-16 字符)</Label>
+							<Input
+								id="change-new-pw"
+								type="password"
+								value={changeNewPw}
+								onChange={(e) => setChangeNewPw(e.target.value)}
+							/>
 						</div>
 						<div className="space-y-2">
 							<Label htmlFor="change-new-pw-confirm">确认新密码</Label>
