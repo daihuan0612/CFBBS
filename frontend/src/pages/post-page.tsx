@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { AlignCenter, ArrowLeft, Bold, Cloud, Eye, EyeOff, Heart, Image, Indent, Italic, Lock, ExternalLink, MoreVertical, Pin, Pencil, Quote, Reply, Shield, Trash2, User, Video, X } from 'lucide-react';
+import { ArrowLeft, Eye, Heart, Lock, ExternalLink, MoreVertical, Pin, Pencil, Reply, Shield, Trash2, User, X } from 'lucide-react';
 
 import { TurnstileWidget } from '@/components/turnstile';
 import { PageShell } from '@/components/page-shell';
@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { MarkdownEditor } from '@/components/markdown-editor';
 import { useConfig } from '@/hooks/use-config';
 import { apiFetch, API_BASE, formatDate, getSecurityHeaders, type Category, type Comment, type Post } from '@/lib/api';
 import { getToken, getUser } from '@/lib/auth';
@@ -40,9 +41,7 @@ export function PostPage() {
 	const [editContent, setEditContent] = React.useState('');
 	const [editLoading, setEditLoading] = React.useState(false);
 	const [editError, setEditError] = React.useState('');
-	const [uploadLoading, setUploadLoading] = React.useState(false);
 	const [uploadError, setUploadError] = React.useState('');
-	const editContentRef = React.useRef<HTMLTextAreaElement | null>(null);
 
 	// 加密附件（仅存网盘链接）
 	const [attachments, setAttachments] = React.useState<any[]>([]);
@@ -55,308 +54,7 @@ export function PostPage() {
 	const [verifiedLinks, setVerifiedLinks] = React.useState<Record<number, string>>({});
 	const attEnabled = config?.encrypted_attachments_enabled === true;
 
-	const [videoDialogOpen, setVideoDialogOpen] = React.useState(false);
-	const [videoUrl, setVideoUrl] = React.useState('');
-	const [cloudDialogOpen, setCloudDialogOpen] = React.useState(false);
-	const [cloudLinkUrl, setCloudLinkUrl] = React.useState('');
-	const [cloudLinkName, setCloudLinkName] = React.useState('');
-	const [imageDialogOpen, setImageDialogOpen] = React.useState(false);
-	const [imageUrl, setImageUrl] = React.useState('');
-
-	function insertIntoEditContent(insertText: string) {
-		if (editContentRef.current) {
-			const el = editContentRef.current;
-			const start = el.selectionStart;
-			const end = el.selectionEnd;
-			const before = editContent.slice(0, start);
-			const after = editContent.slice(end);
-			const updated = before + insertText + after;
-			setEditContent(updated);
-			setTimeout(() => {
-				el.selectionStart = el.selectionEnd = start + insertText.length;
-				el.focus();
-			}, 0);
-		} else {
-			setEditContent(editContent + insertText);
-		}
-	}
-
-	function applyEdit(transform: (text: string, start: number, end: number) => { text: string; selectionStart: number; selectionEnd: number }) {
-		const el = editContentRef.current;
-		const start = el ? el.selectionStart : editContent.length;
-		const end = el ? el.selectionEnd : editContent.length;
-		const result = transform(editContent, start, end);
-		setEditContent(result.text);
-		setTimeout(() => {
-			const target = editContentRef.current;
-			if (!target) return;
-			target.selectionStart = result.selectionStart;
-			target.selectionEnd = result.selectionEnd;
-			target.focus();
-		}, 0);
-	}
-
-	function wrapSelection(prefix: string, suffix: string, placeholder: string) {
-		applyEdit((text, start, end) => {
-			const selected = text.slice(start, end) || placeholder;
-			const next = text.slice(0, start) + prefix + selected + suffix + text.slice(end);
-			const selectionStart = start + prefix.length;
-			const selectionEnd = selectionStart + selected.length;
-			return { text: next, selectionStart, selectionEnd };
-		});
-	}
-
-	function wrapBlock(fence: string) {
-		applyEdit((text, start, end) => {
-			const selected = text.slice(start, end);
-			const block = `${fence}\n${selected}\n${fence}`;
-			const next = text.slice(0, start) + block + text.slice(end);
-			const selectionStart = start + fence.length + 1;
-			const selectionEnd = selectionStart + selected.length;
-			return { text: next, selectionStart, selectionEnd };
-		});
-	}
-
-	function transformLines(transform: (line: string, index: number, lines: string[]) => string) {
-		applyEdit((text, start, end) => {
-			const lineStart = text.lastIndexOf('\n', start - 1) + 1;
-			const lineEnd = text.indexOf('\n', end);
-			const endIndex = lineEnd === -1 ? text.length : lineEnd;
-			const segment = text.slice(lineStart, endIndex);
-			const lines = segment.split('\n');
-			const nextSegment = lines.map(transform).join('\n');
-			const next = text.slice(0, lineStart) + nextSegment + text.slice(endIndex);
-			return { text: next, selectionStart: lineStart, selectionEnd: lineStart + nextSegment.length };
-		});
-	}
-
-	function setHeading(level: number) {
-		transformLines((line) => {
-			const cleaned = line.replace(/^\s{0,3}#{1,6}\s+/, '');
-			if (level === 0) return cleaned;
-			return `${'#'.repeat(level)} ${cleaned}`;
-		});
-	}
-
-	function toggleBlockquote() {
-		transformLines((line) => (line.startsWith('> ') ? line.slice(2) : `> ${line}`));
-	}
-
-	function toggleList(ordered: boolean) {
-		transformLines((line, index, lines) => {
-			if (ordered) {
-				if (/^\d+\.\s+/.test(line)) return line.replace(/^\d+\.\s+/, '');
-				return `${index + 1}. ${line}`;
-			}
-			if (/^[-*+]\s+/.test(line)) return line.replace(/^[-*+]\s+/, '');
-			return `- ${line}`;
-		});
-	}
-
-	function indentLines() {
-		transformLines((line) => `  ${line}`);
-	}
-
-	function outdentLines() {
-		transformLines((line) => line.replace(/^(\t| {1,2})/, ''));
-	}
-
-	function insertLink(isImage: boolean) {
-		applyEdit((text, start, end) => {
-			const selected = text.slice(start, end) || (isImage ? 'alt' : 'text');
-			const link = isImage ? `![${selected}](url)` : `[${selected}](url)`;
-			const next = text.slice(0, start) + link + text.slice(end);
-			const urlStart = start + (isImage ? 2 : 1) + selected.length + 2;
-			const urlEnd = urlStart + 3;
-			return { text: next, selectionStart: urlStart, selectionEnd: urlEnd };
-		});
-	}
-
-	function insertTable() {
-		applyEdit((text, start, end) => {
-			const table = `| Header | Header |\n| --- | --- |\n| Cell | Cell |`;
-			const next = text.slice(0, start) + table + text.slice(end);
-			const selectionStart = start + 2;
-			const selectionEnd = selectionStart + 6;
-			return { text: next, selectionStart, selectionEnd };
-		});
-	}
-
-	function insertEditBold() { wrapSelection('**', '**', '加粗文字'); }
-	function insertEditItalic() { wrapSelection('*', '*', '斜体文字'); }
-	function insertEditQuote() {
-		transformLines((line) => `> ${line}`);
-	}
-	function insertEditCenter() {
-		wrapSelection('<center>\n', '\n</center>', 'text');
-	}
-	function insertEditIndent() {
-		applyEdit((text, start, end) => {
-			const selected = text.slice(start, end) || '缩进内容';
-			const indented = selected.split('\n').map(l => l ? '  ' + l : l).join('\n');
-			const next = text.slice(0, start) + indented + text.slice(end);
-			return { text: next, selectionStart: start, selectionEnd: start + indented.length };
-		});
-	}
-	function formatEditParagraphIndent() {
-		transformLines((line) => {
-			if (!line.trim()) return line;
-			if (line.startsWith('\u3000\u3000')) return line.replace(/^\u3000\u3000/, '');
-			return `\u3000\u3000${line}`;
-		});
-	}
-	function formatEditNovel() {
-		applyEdit((text, start, end) => {
-			const selected = text.slice(start, end) || text;
-			const lines = selected.split('\n');
-			const formatted = lines.map(line => {
-				const trimmed = line.trim();
-				if (/^(第[一二三四五六七八九十百千万\d]+[章节回部]|Chapter\s*\d+|#[#\s]|引子|楔子|序|尾声|后记)/.test(trimmed)) {
-					return `\n**${trimmed}**\n`;
-				}
-				if (!trimmed) return '';
-				return `\u3000\u3000${trimmed}`;
-			}).join('\n');
-			const next = text.slice(0, start) + formatted + text.slice(end);
-			return { text: next, selectionStart: start, selectionEnd: start + formatted.length };
-		});
-	}
-	function insertEditVideo() {
-		if (!videoUrl.trim()) return;
-		const url = videoUrl.trim();
-		const isYouTube = url.includes('youtube.com/watch?v=') || url.includes('youtu.be/');
-		const isBilibili = url.includes('bilibili.com/video/');
-		if (isYouTube) {
-			const match = url.match(/(?:v=|\/)([\w\-]{11})/);
-			if (match) insertIntoEditContent(`\n<div class="youtube-embed"><iframe src="https://www.youtube.com/embed/${match[1]}" frameborder="0" allowfullscreen></iframe></div>\n`);
-		} else if (isBilibili) {
-			const match = url.match(/video\/(BV[\w]+)/);
-			if (match) insertIntoEditContent(`\n<div class="bilibili-embed"><iframe src="https://player.bilibili.com/player.html?bvid=${match[1]}" frameborder="0" allowfullscreen></iframe></div>\n`);
-		} else {
-			insertIntoEditContent(`\n<div align="center">\n<video controls playsinline muted width="100%"><source src="${url}" type="video/mp4"></video>\n</div>\n`);
-		}
-		setVideoUrl('');
-		setVideoDialogOpen(false);
-	}
-	function insertEditImageMarkdown() {
-		const trimmed = imageUrl.trim();
-		if (!trimmed) return;
-		insertIntoEditContent(`\n![图片](${trimmed})\n`);
-		setImageUrl('');
-		setImageDialogOpen(false);
-	}
-	function insertEditCloudLink() {
-		if (!cloudLinkUrl.trim()) return;
-		insertIntoEditContent(`\n[${cloudLinkName.trim() || '网盘链接'}](${cloudLinkUrl.trim()})\n`);
-		setCloudLinkUrl('');
-		setCloudLinkName('');
-		setCloudDialogOpen(false);
-	}
-	function handleEditKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-		const isMod = e.ctrlKey || e.metaKey;
-		if (!isMod) return;
-		const key = e.key.toLowerCase();
-		const shift = e.shiftKey;
-		if (!shift && key === 'b') {
-			e.preventDefault();
-			wrapSelection('**', '**', 'text');
-			return;
-		}
-		if (!shift && key === 'i') {
-			e.preventDefault();
-			wrapSelection('*', '*', 'text');
-			return;
-		}
-		if (!shift && key === 'u') {
-			e.preventDefault();
-			wrapSelection('<u>', '</u>', 'text');
-			return;
-		}
-		if (!shift && key === 'k') {
-			e.preventDefault();
-			insertLink(false);
-			return;
-		}
-		if (!shift && key === 't') {
-			e.preventDefault();
-			insertTable();
-			return;
-		}
-		if (shift && key === 'i') {
-			e.preventDefault();
-			insertLink(true);
-			return;
-		}
-		if (!shift && key === '0') {
-			e.preventDefault();
-			setHeading(0);
-			return;
-		}
-		if (!shift && key === '1') {
-			e.preventDefault();
-			setHeading(1);
-			return;
-		}
-		if (!shift && key === '2') {
-			e.preventDefault();
-			setHeading(2);
-			return;
-		}
-		if (!shift && key === '3') {
-			e.preventDefault();
-			setHeading(3);
-			return;
-		}
-		if (shift && key === 'k') {
-			e.preventDefault();
-			wrapBlock('```');
-			return;
-		}
-		if (shift && key === 'm') {
-			e.preventDefault();
-			wrapBlock('$$');
-			return;
-		}
-		if (shift && key === 'q') {
-			e.preventDefault();
-			toggleBlockquote();
-			return;
-		}
-		if (shift && key === '[') {
-			e.preventDefault();
-			toggleList(true);
-			return;
-		}
-		if (shift && key === ']') {
-			e.preventDefault();
-			toggleList(false);
-			return;
-		}
-		if (!shift && key === '[') {
-			e.preventDefault();
-			outdentLines();
-			return;
-		}
-		if (!shift && key === ']') {
-			e.preventDefault();
-			indentLines();
-			return;
-		}
-		if (shift && (e.code === 'Backquote' || key === '`')) {
-			e.preventDefault();
-			wrapSelection('`', '`', 'code');
-			return;
-		}
-		if (e.altKey && shift && e.code === 'Digit5') {
-			e.preventDefault();
-			wrapSelection('~~', '~~', 'text');
-			return;
-		}
-	}
-
 	const contentRef = React.useRef<HTMLDivElement | null>(null);
-	const [editPreviewOpen, setEditPreviewOpen] = React.useState(true);
-	const editPreviewRef = React.useRef<HTMLDivElement | null>(null);
 	const [adminMenuOpen, setAdminMenuOpen] = React.useState(false);
 	const adminMenuRef = React.useRef<HTMLDivElement | null>(null);
 	const [allCategories, setAllCategories] = React.useState<Category[]>([]);
@@ -468,17 +166,6 @@ export function PostPage() {
 		const cleanup = attachFancybox(el);
 		return cleanup;
 	}, [post, comments.length, isEditing]);
-
-	React.useEffect(() => {
-		if (!isEditing) return;
-		if (!editPreviewOpen) return;
-		const el = editPreviewRef.current;
-		if (!el) return;
-		highlightCodeBlocks(el);
-		initVideoPosters(el);
-		const cleanup = attachFancybox(el);
-		return cleanup;
-	}, [isEditing, editPreviewOpen, editContent]);
 
 	React.useEffect(() => {
 		if (!adminMenuOpen) return;
@@ -813,104 +500,7 @@ export function PostPage() {
 										<div className="space-y-2">
 											<Input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} maxLength={60} />
 										</div>
-										<div className="space-y-2">
-											<div className="flex flex-wrap items-center justify-between gap-2">
-												<Label>内容 (支持 Markdown)</Label>
-												<div className="flex flex-wrap items-center gap-1">
-													<span className="text-xs text-muted-foreground mr-1">快捷键：Ctrl+B/I/K</span>
-													<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="加粗 Ctrl+B" onClick={insertEditBold}>
-														<Bold className="h-3.5 w-3.5" />
-													</Button>
-													<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="斜体 Ctrl+I" onClick={insertEditItalic}>
-														<Italic className="h-3.5 w-3.5" />
-													</Button>
-													<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="引用" onClick={insertEditQuote}>
-														<Quote className="h-3.5 w-3.5" />
-													</Button>
-													<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="居中" onClick={insertEditCenter}>
-														<AlignCenter className="h-3.5 w-3.5" />
-													</Button>
-													<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="增加缩进" onClick={insertEditIndent}>
-														<Indent className="h-3.5 w-3.5" />
-													</Button>
-													<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="首行缩进（全角空格）" onClick={formatEditParagraphIndent}>
-														<svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12H9"/><path d="M21 6H3"/><path d="M21 18H3"/><polyline points="7 8 3 12 7 16"/></svg>
-													</Button>
-													<Button type="button" variant="ghost" size="sm" className="h-7 px-1.5" title="小说格式化（章标题+首行缩进）" onClick={formatEditNovel}>
-														<span className="text-[10px] font-medium">Aa</span>
-													</Button>
-													<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="插入视频" onClick={() => setVideoDialogOpen(true)}>
-														<Video className="h-3.5 w-3.5" />
-													</Button>
-													<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="插入图片链接" onClick={() => setImageDialogOpen(true)}>
-														<Image className="h-3.5 w-3.5" />
-													</Button>
-													<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="插入网盘链接" onClick={() => setCloudDialogOpen(true)}>
-														<Cloud className="h-3.5 w-3.5" />
-													</Button>
-													<Button type="button" variant="outline" size="sm" onClick={() => setEditPreviewOpen((v) => !v)}>
-														{editPreviewOpen ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-														<span className="sr-only">{editPreviewOpen ? '关闭预览' : '打开预览'}</span>
-													</Button>
-												</div>
-											</div>
-											<div className="text-xs text-muted-foreground">Ctrl+T 表格，Ctrl+Shift+M 公式，Ctrl+Shift+Q 引用，Alt+Shift+5 删除线</div>
-											<Textarea ref={editContentRef} value={editContent} onChange={(e) => setEditContent(e.target.value)} onKeyDown={handleEditKeyDown} rows={10} />
-										</div>
-                        {/* upload image when editing */}
-                        <div className="space-y-2">
-                            <label className="block text-sm font-medium text-muted-foreground">上传图片</label>
-                            <input
-                                type="file"
-                                accept="image/*"
-                                className="block w-full text-sm"
-                                onChange={async (e) => {
-                                    const file = e.target.files && e.target.files[0];
-                                    if (!file) return;
-                                    setEditError('');
-                                    if (file.size > 2 * 1024 * 1024) {
-                                        setEditError('文件过大 (最大 2MB)');
-                                        return;
-                                    }
-                                    setUploadLoading(true);
-                                    try {
-                                        const formData = new FormData();
-                                        formData.append('file', file);
-                                        formData.append('type', 'post');
-                                        const res = await fetch(`${API_BASE}/upload`, {
-                                            method: 'POST',
-                                            headers: getSecurityHeaders('POST', null),
-                                            body: formData,
-                                        });
-                                        const data = await res.json();
-                                        if (!res.ok) throw new Error(data?.error || '上传失败');
-                                        // insert link at cursor and show preview
-                                        insertIntoEditContent(`
-
-![](${data.url})
-
-`);
-                                        setEditPreviewOpen(true);
-                                    } catch (err: any) {
-                                        setEditError(String(err?.message || err));
-                                    } finally {
-                                        setUploadLoading(false);
-                                    }
-                                }}
-                            />
-                            {uploadError ? <div className="text-sm text-destructive">{uploadError}</div> : null}
-                            {uploadLoading ? <div className="text-sm text-muted-foreground">上传中…</div> : null}
-                        </div>
-										{editPreviewOpen ? (
-<div className="w-full max-w-full rounded-md border bg-muted/20 p-3">
-												<div className="mb-2 text-xs font-medium text-muted-foreground">预览</div>
-												<div
-													ref={editPreviewRef}
-													className="prose max-w-full break-words [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:my-1"
-													dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(editContent || '', config?.r2_public_url) }}
-												/>
-											</div>
-										) : null}
+										<MarkdownEditor content={editContent} setContent={setEditContent} placeholder="写下你的内容..." r2PublicUrl={config?.r2_public_url} />
 										<Button onClick={saveEdit} disabled={editLoading}>
 											{editLoading ? '保存中...' : '保存'}
 										</Button>
@@ -949,58 +539,6 @@ export function PostPage() {
 								<DialogFooter>
 									<Button variant="outline" onClick={() => setAttachDialogOpen(false)}>取消</Button>
 									<Button onClick={saveAttachmentLink} disabled={!attachLinkUrl || !attachFileName}>保存</Button>
-								</DialogFooter>
-							</DialogContent>
-						</Dialog>
-
-						<Dialog open={videoDialogOpen} onOpenChange={setVideoDialogOpen}>
-							<DialogContent className="sm:max-w-md">
-								<DialogHeader><DialogTitle>插入视频</DialogTitle></DialogHeader>
-								<div className="space-y-4 py-2">
-									<div className="space-y-2">
-										<Label htmlFor="edit-video-url">视频链接</Label>
-										<Input id="edit-video-url" value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)} placeholder="https://... 或 YouTube/B站链接" />
-									</div>
-								</div>
-								<DialogFooter>
-									<Button variant="outline" onClick={() => setVideoDialogOpen(false)}>取消</Button>
-									<Button onClick={insertEditVideo} disabled={!videoUrl.trim()}>插入</Button>
-								</DialogFooter>
-							</DialogContent>
-						</Dialog>
-
-						<Dialog open={imageDialogOpen} onOpenChange={setImageDialogOpen}>
-							<DialogContent className="sm:max-w-md">
-								<DialogHeader><DialogTitle>插入图片链接</DialogTitle></DialogHeader>
-								<div className="space-y-4 py-2">
-									<div className="space-y-2">
-										<Label htmlFor="edit-image-url">图片链接</Label>
-										<Input id="edit-image-url" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://example.com/image.jpg" />
-									</div>
-								</div>
-								<DialogFooter>
-									<Button variant="outline" onClick={() => setImageDialogOpen(false)}>取消</Button>
-									<Button onClick={insertEditImageMarkdown} disabled={!imageUrl.trim()}>插入</Button>
-								</DialogFooter>
-							</DialogContent>
-						</Dialog>
-
-						<Dialog open={cloudDialogOpen} onOpenChange={setCloudDialogOpen}>
-							<DialogContent className="sm:max-w-md">
-								<DialogHeader><DialogTitle>插入网盘链接</DialogTitle></DialogHeader>
-								<div className="space-y-4 py-2">
-									<div className="space-y-2">
-										<Label htmlFor="edit-cloud-url">链接地址</Label>
-										<Input id="edit-cloud-url" value={cloudLinkUrl} onChange={(e) => setCloudLinkUrl(e.target.value)} placeholder="https://..." />
-									</div>
-									<div className="space-y-2">
-										<Label htmlFor="edit-cloud-name">显示名称</Label>
-										<Input id="edit-cloud-name" value={cloudLinkName} onChange={(e) => setCloudLinkName(e.target.value)} placeholder="网盘链接" />
-									</div>
-								</div>
-								<DialogFooter>
-									<Button variant="outline" onClick={() => setCloudDialogOpen(false)}>取消</Button>
-									<Button onClick={insertEditCloudLink} disabled={!cloudLinkUrl.trim()}>插入</Button>
 								</DialogFooter>
 							</DialogContent>
 						</Dialog>
