@@ -910,7 +910,16 @@ export default {
 				await env.cforum_db.prepare('DELETE FROM likes WHERE user_id = ?').bind(user_id).run();
 				await env.cforum_db.prepare('DELETE FROM comments WHERE author_id = ?').bind(user_id).run();
 
-				// 4. Delete posts and user
+				// 4. Clean up all other FK references before deleting the user
+				await env.cforum_db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(user_id).run();
+				await env.cforum_db.prepare('DELETE FROM notifications WHERE user_id = ? OR actor_id = ?').bind(user_id, user_id).run();
+				await env.cforum_db.prepare('DELETE FROM user_watermarks WHERE user_id = ?').bind(user_id).run();
+				await env.cforum_db.prepare('DELETE FROM password_history WHERE user_id = ?').bind(user_id).run();
+				await env.cforum_db.prepare('DELETE FROM temp_passwords WHERE user_id = ? OR created_by = ?').bind(user_id, user_id).run();
+				await env.cforum_db.prepare('DELETE FROM invitation_codes WHERE created_by = ? OR used_by = ?').bind(user_id, user_id).run();
+				await env.cforum_db.prepare('DELETE FROM encrypted_attachments WHERE user_id = ?').bind(user_id).run();
+
+				// 5. Delete posts and user
 				await env.cforum_db.prepare('DELETE FROM posts WHERE author_id = ?').bind(user_id).run();
 				await env.cforum_db.prepare('DELETE FROM users WHERE id = ?').bind(user_id).run();
 
@@ -1582,10 +1591,19 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 				await env.cforum_db.prepare('DELETE FROM likes WHERE user_id = ?').bind(id).run();
 				await env.cforum_db.prepare('DELETE FROM comments WHERE author_id = ?').bind(id).run();
 
-				// 3. Delete the user's posts
+				// 3. Clean up all other FK references before deleting the user
+				await env.cforum_db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(id).run();
+				await env.cforum_db.prepare('DELETE FROM notifications WHERE user_id = ? OR actor_id = ?').bind(id, id).run();
+				await env.cforum_db.prepare('DELETE FROM user_watermarks WHERE user_id = ?').bind(id).run();
+				await env.cforum_db.prepare('DELETE FROM password_history WHERE user_id = ?').bind(id).run();
+				await env.cforum_db.prepare('DELETE FROM temp_passwords WHERE user_id = ? OR created_by = ?').bind(id, id).run();
+				await env.cforum_db.prepare('DELETE FROM invitation_codes WHERE created_by = ? OR used_by = ?').bind(id, id).run();
+				await env.cforum_db.prepare('DELETE FROM encrypted_attachments WHERE user_id = ?').bind(id).run();
+
+				// 4. Delete the user's posts
 				await env.cforum_db.prepare('DELETE FROM posts WHERE author_id = ?').bind(id).run();
 
-				// 4. Finally, delete the user
+				// 5. Finally, delete the user
 				const userToDelete = await env.cforum_db.prepare('SELECT email, username FROM users WHERE id = ?').bind(id).first();
 				await env.cforum_db.prepare('DELETE FROM users WHERE id = ?').bind(id).run();
 
