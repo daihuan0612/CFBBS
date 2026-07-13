@@ -383,7 +383,8 @@ export default {
 			`INSERT OR IGNORE INTO settings (key, value) VALUES ('notify_on_user_delete', '1');`,
 			`INSERT OR IGNORE INTO settings (key, value) VALUES ('notify_on_username_change', '1');`,
 			`INSERT OR IGNORE INTO settings (key, value) VALUES ('notify_on_avatar_change', '1');`,
-			`INSERT OR IGNORE INTO settings (key, value) VALUES ('notify_on_manual_verify', '1');`
+			`INSERT OR IGNORE INTO settings (key, value) VALUES ('notify_on_manual_verify', '1');`,
+			`INSERT OR IGNORE INTO settings (key, value) VALUES ('notify_on_comment', '1');`
 			];
 			for (const stmt of stmts) {
 				try {
@@ -572,7 +573,7 @@ export default {
 					}
 				}
 
-				return jsonResponse(config);
+				return jsonResponse(config, 200, 'no-store, private');
 			} catch (e) {
 				return handleError(e);
 			}
@@ -585,7 +586,7 @@ export default {
 				if (userPayload.role !== 'admin') return jsonResponse({ error: 'Unauthorized' }, 403);
 
 				const body = await request.json() as any;
-				const { turnstile_enabled, notify_on_user_delete, notify_on_username_change, notify_on_avatar_change, notify_on_manual_verify,
+				const { turnstile_enabled, notify_on_user_delete, notify_on_username_change, notify_on_avatar_change, notify_on_manual_verify, notify_on_comment,
 					invite_only, encrypted_attachments_enabled, feature_likes, feature_bookmarks, feature_comments, feature_posts, watermark_enabled } = body;
 
 				const stmt = env.cforum_db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)");
@@ -596,6 +597,7 @@ export default {
 				if (notify_on_username_change !== undefined) batch.push(stmt.bind('notify_on_username_change', notify_on_username_change ? '1' : '0'));
 				if (notify_on_avatar_change !== undefined) batch.push(stmt.bind('notify_on_avatar_change', notify_on_avatar_change ? '1' : '0'));
 				if (notify_on_manual_verify !== undefined) batch.push(stmt.bind('notify_on_manual_verify', notify_on_manual_verify ? '1' : '0'));
+				if (notify_on_comment !== undefined) batch.push(stmt.bind('notify_on_comment', notify_on_comment ? '1' : '0'));
 				if (invite_only !== undefined) batch.push(stmt.bind('invite_only', invite_only ? '1' : '0'));
 				if (encrypted_attachments_enabled !== undefined) batch.push(stmt.bind('encrypted_attachments_enabled', encrypted_attachments_enabled ? '1' : '0'));
 				if (feature_likes !== undefined) batch.push(stmt.bind('feature_likes', feature_likes ? '1' : '0'));
@@ -1322,7 +1324,7 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 				const { results } = await env.cforum_db.prepare(
 					'SELECT id, type, title, message, actor_id, is_read, created_at FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT ?'
 				).bind(userPayload.id, limit).all();
-				return jsonResponse(results);
+				return jsonResponse(results, 200, 'no-store, private');
 			} catch (e) {
 				return handleError(e);
 			}
@@ -1470,7 +1472,7 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 					users: userCount,
 					posts: postCount,
 					comments: commentCount
-				});
+				}, 200, 'no-store, private');
 			} catch (e) {
 				return handleError(e);
 			}
@@ -1629,7 +1631,7 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 		}
 
 		// DELETE /api/admin/posts/:id
-		if (url.pathname.startsWith('/api/admin/posts/') && method === 'DELETE') {
+		if (url.pathname.match(/^\/api\/admin\/posts\/\d+$/) && method === 'DELETE') {
 			const id = url.pathname.split('/').pop();
 			try {
 				const userPayload = await authenticate(request);
@@ -1656,7 +1658,7 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 		}
 
 		// DELETE /api/admin/comments/:id
-		if (url.pathname.startsWith('/api/admin/comments/') && method === 'DELETE') {
+		if (url.pathname.match(/^\/api\/admin\/comments\/\d+$/) && method === 'DELETE') {
 			const id = url.pathname.split('/').pop();
 			try {
 				const userPayload = await authenticate(request);
@@ -1761,7 +1763,7 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 					used_files: usedKeys.size,
 					orphaned_files: orphans.length,
 					orphans: orphans
-				});
+				}, 200, 'no-store, private');
 
 			} catch (e) {
 				return handleError(e);
@@ -1914,7 +1916,7 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 				const { results } = await env.cforum_db.prepare(
 					'SELECT id, email, username, created_at FROM users'
 				).all();
-				return jsonResponse(results, { cacheControl: 'no-store, private' });
+				return jsonResponse(results, 200, 'no-store, private');
 			} catch (e) {
 				return handleError(e);
 			}
@@ -2015,12 +2017,12 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 				// 条件缓存检查：先仅查 updated_at（轻量查询），未修改直接 304，不走后续 JOIN
 				const userId = url.searchParams.get('user_id');
 				if (!userId) {
-					const row = await env.cforum_db.prepare('SELECT updated_at FROM posts WHERE id = ?').bind(postId).first<{updated_at: string}>();
+					const row = await env.cforum_db.prepare('SELECT created_at FROM posts WHERE id = ?').bind(postId).first<{created_at: string}>();
 					if (row) {
 						const ifModifiedSince = request.headers.get('If-Modified-Since');
 						if (ifModifiedSince) {
 							const modSince = new Date(ifModifiedSince).getTime();
-							const postTime = new Date(row.updated_at).getTime();
+							const postTime = new Date(row.created_at).getTime();
 							if (!isNaN(modSince) && !isNaN(postTime) && postTime <= modSince) {
 								return new Response(null, {
 									status: 304,
@@ -2067,7 +2069,7 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 
 				// 设置 Last-Modified + Cache-Control，浏览器缓存但每次用 If-Modified-Since 快速验证
 			const resp = jsonResponse(post);
-			const postUpdated = (post as any).updated_at as string | undefined;
+			const postUpdated = (post as any).created_at as string | undefined;
 			if (postUpdated) {
 				resp.headers.set('Last-Modified', new Date(postUpdated).toUTCString());
 			}
@@ -2379,7 +2381,7 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 					 LEFT JOIN users user ON ic.used_by = user.id
 					 ORDER BY ic.created_at DESC LIMIT 200`
 				).all();
-				return jsonResponse(results);
+				return jsonResponse(results, 200, 'no-store, private');
 			} catch (e) { return handleError(e); }
 		}
 
