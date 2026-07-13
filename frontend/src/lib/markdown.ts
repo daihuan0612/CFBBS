@@ -95,8 +95,8 @@ export function renderMarkdownToHtml(markdown: string, r2PublicUrl?: string) {
 	const DOMPurify = createDOMPurify(windowLike);
 	// 编辑器按钮插入 \u3000\u3000（全角空格）→ 段落渲染器检测行首 \u3000，加 class="md-indent-paragraph"
 	// → CSS .md-indent-paragraph { text-indent: 2em } 实现缩进
-	// \u200B（零宽空格）防止 marked 吞掉文档开头的 \u3000
-	const processed = markdown.replace(/^\u3000+/, '\u200B$&');
+	// \u200B（零宽空格）防止 marked 吞掉文档开头或行首的 \u3000
+	const processed = markdown.replace(/^\u3000+/gm, '\u200B$&');
 	let html = marked.parse(processed) as string;
 	html = DOMPurify.sanitize(html, {
 		ADD_TAGS: ['video', 'source', 'iframe'],
