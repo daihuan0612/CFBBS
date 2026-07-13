@@ -34,6 +34,7 @@ export function SettingsPage() {
 
 	const [changeCurrentPw, setChangeCurrentPw] = React.useState('');
 	const [changeNewPw, setChangeNewPw] = React.useState('');
+	const [changeNewPwConfirm, setChangeNewPwConfirm] = React.useState('');
 
 	const isAdmin = user?.role === 'admin';
 
@@ -155,10 +156,11 @@ export function SettingsPage() {
 			await apiFetch('/user/change-password', {
 				method: 'POST',
 				headers: getSecurityHeaders('POST'),
-				body: JSON.stringify({ current_password: changeCurrentPw, new_password: changeNewPw }),
+				body: JSON.stringify({ current_password: changeCurrentPw, new_password: changeNewPw, confirm_password: changeNewPwConfirm }),
 			});
 			setChangeCurrentPw('');
 			setChangeNewPw('');
+			setChangeNewPwConfirm('');
 			alert('密码已修改');
 		} catch (e: any) {
 			setError(String(e?.message || e));
@@ -269,6 +271,15 @@ export function SettingsPage() {
 									onChange={(e) => setChangeNewPw(e.target.value)}
 								/>
 							</div>
+						</div>
+						<div className="space-y-2">
+							<Label htmlFor="change-new-pw-confirm">确认新密码</Label>
+							<Input
+								id="change-new-pw-confirm"
+								type="password"
+								value={changeNewPwConfirm}
+								onChange={(e) => setChangeNewPwConfirm(e.target.value)}
+							/>
 						</div>
 						<Button onClick={changePassword} disabled={changingPw}>
 							{changingPw ? '修改中...' : '修改密码'}

@@ -13,6 +13,7 @@ export function RegisterPage() {
 	const [email, setEmail] = React.useState('');
 	const [username, setUsername] = React.useState('');
 	const [password, setPassword] = React.useState('');
+	const [confirmPassword, setConfirmPassword] = React.useState('');
 	const [invitationCode, setInvitationCode] = React.useState('');
 	const [turnstileToken, setTurnstileToken] = React.useState('');
 	const [turnstileResetKey, setTurnstileResetKey] = React.useState(0);
@@ -29,6 +30,10 @@ export function RegisterPage() {
 		e.preventDefault();
 		setError('');
 		setSuccess('');
+		if (password !== confirmPassword) {
+			setError('两次输入的密码不一致');
+			return;
+		}
 		if (turnstileActive && !turnstileToken) {
 			setError('请完成验证码验证');
 			return;
@@ -36,7 +41,7 @@ export function RegisterPage() {
 
 		setLoading(true);
 		try {
-			const body: any = { email, username, password, 'cf-turnstile-response': turnstileToken };
+			const body: any = { email, username, password, confirm_password: confirmPassword, 'cf-turnstile-response': turnstileToken };
 			if (inviteOnly) body.invitation_code = invitationCode;
 
 			const res = await fetch(`${API_BASE}/register`, {
@@ -111,6 +116,18 @@ export function RegisterPage() {
 									autoComplete="new-password"
 									value={password}
 									onChange={(e) => setPassword(e.target.value)}
+									required
+								/>
+							</div>
+
+							<div className="space-y-2">
+								<Label htmlFor="register-confirm-password">确认密码</Label>
+								<Input
+									id="register-confirm-password"
+									type="password"
+									autoComplete="new-password"
+									value={confirmPassword}
+									onChange={(e) => setConfirmPassword(e.target.value)}
 									required
 								/>
 							</div>

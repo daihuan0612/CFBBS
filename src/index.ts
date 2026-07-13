@@ -938,9 +938,10 @@ export default {
 			try {
 				const userPayload = await authenticate(request);
 				const body = await request.json() as any;
-				const { current_password, new_password } = body;
+				const { current_password, new_password, confirm_password } = body;
 
 				if (!current_password || !new_password) return jsonResponse({ error: '请输入当前密码和新密码' }, 400);
+				if (new_password !== confirm_password) return jsonResponse({ error: '两次输入的新密码不一致' }, 400);
 				if (new_password.length < 8 || new_password.length > 16) return jsonResponse({ error: '密码长度需 8-16 个字符' }, 400);
 
 				const user_id = userPayload.id;
@@ -1099,8 +1100,9 @@ export default {
 					return jsonResponse({ error: '验证码验证失败' }, 403);
 				}
 
-				const { token, new_password, totp_code } = body;
+				const { token, new_password, confirm_password, totp_code } = body;
 				if (!token || !new_password) return jsonResponse({ error: '缺少参数' }, 400);
+				if (new_password !== confirm_password) return jsonResponse({ error: '两次输入的密码不一致' }, 400);
 
 				if (new_password.length < 8 || new_password.length > 16) return jsonResponse({ error: '密码长度需 8-16 个字符' }, 400);
 
@@ -1822,9 +1824,12 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 					return jsonResponse({ error: '验证码验证失败' }, 403);
 				}
 
-				const { email, username, password, invitation_code } = body;
+				const { email, username, password, confirm_password, invitation_code } = body;
 				if (!email || !username || !password) {
 					return jsonResponse({ error: '请填写邮箱、昵称和密码' }, 400);
+				}
+				if (password !== confirm_password) {
+					return jsonResponse({ error: '两次输入的密码不一致' }, 400);
 				}
 
 				// Check invite-only mode
