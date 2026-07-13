@@ -11,11 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { API_BASE, getSecurityHeaders } from '@/lib/api';
 import { renderMarkdownToHtml } from '@/lib/markdown';
-import {
-	Bold, Italic, Quote, AlignCenter, Heading, Link, Image,
-	List, ListOrdered, Code, Code2, SeparatorHorizontal,
-	Indent, Video, Cloud, Upload
-} from 'lucide-react';
+import 'remixicon/fonts/remixicon.css';
 
 interface MarkdownEditorProps {
 	content: string;
@@ -380,49 +376,49 @@ export function MarkdownEditor({ content, setContent, placeholder: ph, r2PublicU
 			{/* Toolbar */}
 			<div className="flex flex-wrap items-center gap-1 rounded-md border bg-muted/20 p-1.5">
 				<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="加粗 Ctrl+B"
-					onClick={insertBold}><Bold className="h-3.5 w-3.5" /></Button>
+					onClick={insertBold}><i className="ri-bold text-sm leading-none" /></Button>
 				<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="斜体 Ctrl+I"
-					onClick={insertItalic}><Italic className="h-3.5 w-3.5" /></Button>
+					onClick={insertItalic}><i className="ri-italic text-sm leading-none" /></Button>
 				<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="标题"
-					onClick={insertHeading}><Heading className="h-3.5 w-3.5" /></Button>
+					onClick={insertHeading}><i className="ri-heading text-sm leading-none" /></Button>
 				<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="链接 Ctrl+K"
-					onClick={insertLink}><Link className="h-3.5 w-3.5" /></Button>
+					onClick={insertLink}><i className="ri-link text-sm leading-none" /></Button>
 				<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="引用"
-					onClick={insertQuote}><Quote className="h-3.5 w-3.5" /></Button>
+					onClick={insertQuote}><i className="ri-double-quotes-l text-sm leading-none" /></Button>
 				<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="无序列表"
-					onClick={insertList}><List className="h-3.5 w-3.5" /></Button>
+					onClick={insertList}><i className="ri-list-unordered text-sm leading-none" /></Button>
 				<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="有序列表"
-					onClick={insertOrderedList}><ListOrdered className="h-3.5 w-3.5" /></Button>
+					onClick={insertOrderedList}><i className="ri-list-ordered text-sm leading-none" /></Button>
 				<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="行内代码"
-					onClick={insertCode}><Code className="h-3.5 w-3.5" /></Button>
+					onClick={insertCode}><i className="ri-code-s-slash-line text-sm leading-none" /></Button>
 				<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="代码块"
-					onClick={insertCodeBlock}><Code2 className="h-3.5 w-3.5" /></Button>
+					onClick={insertCodeBlock}><i className="ri-code-box-line text-sm leading-none" /></Button>
 				<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="分割线"
-					onClick={insertHR}><SeparatorHorizontal className="h-3.5 w-3.5" /></Button>
+					onClick={insertHR}><i className="ri-separator text-sm leading-none" /></Button>
 				<span className="mx-1 h-5 w-px bg-border" />
 				<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="居中"
-					onClick={insertCenter}><AlignCenter className="h-3.5 w-3.5" /></Button>
+					onClick={insertCenter}><i className="ri-align-center text-sm leading-none" /></Button>
 				<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="增加缩进"
-					onClick={insertIndent}><Indent className="h-3.5 w-3.5" /></Button>
-				<Button type="button" variant="ghost" size="sm" className="h-7 px-1.5" title="首行缩进（全角空格）"
+					onClick={insertIndent}><i className="ri-indent-increase text-sm leading-none" /></Button>
+				<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="首行缩进（全角空格）"
 					onClick={insertParagraphIndent}>
-					<span className="text-[10px] font-medium">␣␣</span>
+					<i className="ri-indent-decrease text-sm leading-none" />
 				</Button>
-				<Button type="button" variant="ghost" size="sm" className="h-7 px-1.5" title="小说格式化（章标题+首行缩进）"
+				<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="小说格式化（章标题+首行缩进）"
 					onClick={insertNovelFormat}>
-					<span className="text-[10px] font-medium">Aa</span>
+					<i className="ri-book-2-line text-sm leading-none" />
 				</Button>
 				<span className="mx-1 h-5 w-px bg-border" />
 				<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="插入视频"
-					onClick={() => setVideoDialogOpen(true)}><Video className="h-3.5 w-3.5" /></Button>
+					onClick={() => setVideoDialogOpen(true)}><i className="ri-video-line text-sm leading-none" /></Button>
 				<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="插入图片链接"
-					onClick={() => setImageDialogOpen(true)}><Image className="h-3.5 w-3.5" /></Button>
+					onClick={() => setImageDialogOpen(true)}><i className="ri-image-line text-sm leading-none" /></Button>
 				<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="插入网盘链接"
-					onClick={() => setCloudDialogOpen(true)}><Cloud className="h-3.5 w-3.5" /></Button>
+					onClick={() => setCloudDialogOpen(true)}><i className="ri-cloud-line text-sm leading-none" /></Button>
 				<label className="relative cursor-pointer">
 					<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="上传图片"
 						disabled={uploadLoading} asChild>
-						<span><Upload className="h-3.5 w-3.5" /></span>
+						<span><i className="ri-image-add-line text-sm leading-none" /></span>
 					</Button>
 					<input type="file" accept="image/*" className="absolute inset-0 opacity-0 cursor-pointer"
 						onChange={handleImageUpload} disabled={uploadLoading} />
