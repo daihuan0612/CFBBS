@@ -118,9 +118,17 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
           BASE_URL: ${{ secrets.BASE_URL }}
 
-      # ── Frontend: build (API uses relative /api path) ──
-      - name: Build frontend
-        run: npm run build:frontend
+      # ── Frontend: now inject the REAL Worker URL and build ──
+      - name: Inject WORKER_URL and build frontend
+        run: |
+          # Use WORKER_URL secret if set (custom domain), otherwise extract from wrangler output
+          WORKER_URL="${{ secrets.WORKER_URL || '' }}"
+          if [ -z "$WORKER_URL" ]; then
+            WORKER_URL="${{ steps.worker_deploy.outputs.worker_url }}"
+          fi
+          echo "Injecting WORKER_URL: $WORKER_URL"
+          sed -i "s|__WORKER_URL__|$WORKER_URL|g" frontend/src/lib/api.ts
+          npm run build:frontend
 
       # ── Pages: static assets only (no Functions) ──
       - name: Ensure Cloudflare Pages project exists
