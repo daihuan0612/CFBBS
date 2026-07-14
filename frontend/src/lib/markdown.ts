@@ -93,6 +93,9 @@ export function renderMarkdownToHtml(markdown: string, r2PublicUrl?: string) {
 		ADD_ATTR: ['allowfullscreen', 'frameborder', 'allow', 'referrerpolicy', 'target', 'rel', 'autoplay', 'muted', 'playsinline', 'preload', 'data-fancybox', 'data-caption'],
 		ADD_CLASSES: ['md-indent-paragraph']
 	});
+	// 给视频和 iframe 加内联样式居中
+	html = html.replace(/(<video\b)/gi, '$1 style="display:block;margin:1em auto;max-width:100%;max-height:70vh;border-radius:0.5rem"');
+	html = html.replace(/(<iframe\b)/gi, '$1 style="display:block;margin:1em auto;max-width:100%;border-radius:0.5rem"');
 	return html;
 }
 
