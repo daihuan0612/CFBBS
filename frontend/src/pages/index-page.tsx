@@ -13,6 +13,8 @@ import { useConfig } from '@/hooks/use-config';
 import { apiFetch, API_BASE, formatDate, getSecurityHeaders, type Category, type Post } from '@/lib/api';
 import { getToken, getUser } from '@/lib/auth';
 import { attachFancybox, highlightCodeBlocks, initVideoPosters, renderMarkdownToHtml, resolveR2Url } from '@/lib/markdown';
+import { getFirstVideoUrl } from '@/lib/video-thumbnail';
+import { VideoThumbnail } from '@/components/video-thumbnail';
 import { validateText } from '@/lib/validators';
 
 export function IndexPage() {
@@ -948,6 +950,18 @@ export function IndexPage() {
 					) : (
 						posts.map((p) => {
 							const coverUrl = getCoverImageUrl(p.content || '');
+							// 没有图片时检测视频，截帧作为缩略图
+							let videoUrl: string | null = null;
+							if (!coverUrl) {
+								const raw = getFirstVideoUrl(p.content || '');
+								if (raw) {
+									let url = raw;
+									if (!/^https?:\/\//i.test(url) && !url.startsWith('/') && !url.startsWith('data:')) {
+										url = `/r2/${url.replace(/^\/+/, '')}`;
+									}
+									videoUrl = resolveR2Url(url, config?.r2_public_url);
+								}
+							}
 							const isAdmin = user?.role === 'admin';
 							const menuOpen = adminMenuPostId === p.id;
 							const actionLoading = adminActionPostId === p.id;
@@ -962,6 +976,12 @@ export function IndexPage() {
 													className="hidden sm:block h-20 w-28 shrink-0 rounded-md object-cover object-top"
 													loading="lazy"
 													referrerPolicy="no-referrer"
+												/>
+											) : videoUrl ? (
+												<VideoThumbnail
+													videoUrl={videoUrl}
+													postId={p.id}
+													className="hidden sm:block h-20 w-28 shrink-0 rounded-md object-cover object-top"
 												/>
 											) : null}
 											<div className="min-w-0 flex-1 space-y-1">
