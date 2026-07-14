@@ -953,13 +953,13 @@ export function IndexPage() {
 							const actionLoading = adminActionPostId === p.id;
 							return (
 								<Card key={p.id}>
-									<CardContent className="py-5">
-										<div className="flex gap-4">
+									<CardContent className="p-5 sm:p-6">
+										<div className="flex gap-4 items-center">
 											{coverUrl ? (
 												<img
 													src={coverUrl}
 													alt=""
-													className="hidden sm:block h-20 w-28 shrink-0 object-cover object-top"
+													className="hidden sm:block h-20 w-28 shrink-0 rounded-md object-cover object-top"
 													loading="lazy"
 													referrerPolicy="no-referrer"
 												/>
