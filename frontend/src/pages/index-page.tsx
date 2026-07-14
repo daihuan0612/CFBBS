@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Bold, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Eye, EyeOff, Image, Italic, Heart, MessageCircle, MoreVertical, Pin, Quote, RefreshCw, Search, Shield, Trash2, User, X, AlignCenter, Video, Cloud } from 'lucide-react';
+import { Bold, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Eye, EyeOff, Image, Italic, Heart, Link, MessageCircle, MoreVertical, Pin, Quote, RefreshCw, Search, Shield, Trash2, User, X, AlignCenter, Video, Cloud } from 'lucide-react';
 
 import { TurnstileWidget } from '@/components/turnstile';
 import { PageShell } from '@/components/page-shell';
@@ -731,6 +731,10 @@ export function IndexPage() {
 										{/* 引用 */}
 										<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="引用" onClick={insertQuote}>
 											<Quote className="h-3.5 w-3.5" />
+										</Button>
+										{/* 链接 */}
+										<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="链接 Ctrl+K" onClick={() => insertLink(false)}>
+											<Link className="h-3.5 w-3.5" />
 										</Button>
 										{/* 居中 */}
 										<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="居中" onClick={insertCenter}>
