@@ -2536,7 +2536,7 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 		}
 
 		// GET /api/video-proxy — 给外部视频加 CORS 头，供截帧使用
-		if (url.pathname === '/api/video-proxy' && method === 'GET') {
+		if (url.pathname === '/api/video-proxy' && (method === 'GET' || method === 'HEAD')) {
 			try {
 				const targetUrl = url.searchParams.get('url');
 				if (!targetUrl) {
@@ -2549,23 +2549,31 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 				}
 				// 透传 Range 头（支持视频 metadata 加载和 seek）
 				const range = request.headers.get('Range') || '';
-				// 透传浏览器 User-Agent 和 Referer，某些 CDN（如 video.twimg.com）需要
 				const userAgent = request.headers.get('User-Agent') || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
+				// Referer 只透传不擅自补默认值（某些 CDN 如 video.twimg.com 拒绝非预期 Referer）
 				const referer = request.headers.get('Referer') || '';
 				const proxyRes = await fetch(targetUrl, {
+					method: method === 'HEAD' ? 'HEAD' : 'GET',
 					headers: {
 						...(range ? { Range: range } : {}),
 						'User-Agent': userAgent,
-						...(referer ? { Referer: referer } : { Referer: url.origin + '/' }),
+						...(referer ? { Referer: referer } : {}),
+						'Accept': 'video/mp4,video/*,*/*;q=0.9',
+						'Accept-Encoding': 'identity',
 					},
+					redirect: 'follow',
 				});
 				const proxyHeaders = new Headers(proxyRes.headers);
 				proxyHeaders.set('Access-Control-Allow-Origin', '*');
 				proxyHeaders.set('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
 				proxyHeaders.set('Access-Control-Allow-Headers', '*');
+				// 调试头：方便排查 Worker 回源实际拿到什么
+				proxyHeaders.set('X-Proxy-Status', String(proxyRes.status));
+				proxyHeaders.set('X-Proxy-Type', proxyRes.headers.get('content-type') || '');
+				proxyHeaders.set('X-Proxy-Length', proxyRes.headers.get('content-length') || '');
 				// 只透传部分状态码（206 Partial Content 用于 range 请求）
 				const status = proxyRes.status === 206 ? 206 : proxyRes.status;
-				return new Response(proxyRes.body, { status, headers: proxyHeaders });
+				return new Response(method === 'HEAD' ? null : proxyRes.body, { status, headers: proxyHeaders });
 			} catch (e) { return handleError(e); }
 		}
 

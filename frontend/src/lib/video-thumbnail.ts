@@ -109,7 +109,18 @@ export async function captureVideoFrame(videoUrl: string): Promise<Blob> {
 			video.currentTime = SEEK_TIME;
 		});
 
-		video.addEventListener('seeked', () => {
+		video.addEventListener('seeked', async () => {
+			if (cleanedUp) return;
+			// 等待视频帧真正解码完成，避免 drawImage 拿到空帧
+			if (video.readyState < 2) {
+				try {
+					await new Promise<void>((resolve) => {
+						video.addEventListener('loadeddata', () => resolve(), { once: true });
+					});
+				} catch {
+					// ignore
+				}
+			}
 			if (cleanedUp) return;
 			try {
 				const canvas = document.createElement('canvas');
@@ -127,9 +138,12 @@ export async function captureVideoFrame(videoUrl: string): Promise<Blob> {
 				ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 				canvas.toBlob(
 					(blob) => {
+						if (blob) {
+							resolve(blob);
+						} else {
+							reject(new Error('截帧失败'));
+						}
 						cleanup();
-						if (blob) resolve(blob);
-						else reject(new Error('截帧失败'));
 					},
 					'image/webp',
 					0.8
