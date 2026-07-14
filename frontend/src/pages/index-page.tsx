@@ -959,7 +959,7 @@ export function IndexPage() {
 												<img
 													src={coverUrl}
 													alt=""
-													className="hidden sm:block h-20 w-28 shrink-0 object-contain"
+													className="hidden sm:block h-20 w-28 shrink-0 object-cover object-top"
 													loading="lazy"
 													referrerPolicy="no-referrer"
 												/>
