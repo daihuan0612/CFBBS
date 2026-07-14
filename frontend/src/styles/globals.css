@@ -290,15 +290,6 @@
 	border-radius: 0.5rem;
 }
 
-.prose a[data-fancybox] {
-	display: block;
-	text-align: center;
-}
-.prose a[data-fancybox] img {
-	display: inline-block;
-	margin: 1em auto;
-}
-
 .prose video {
 	max-width: 100%;
 	max-height: 70vh;

@@ -66,7 +66,7 @@ renderer.image = (({ href, title, text }: { href: string; title?: string | null;
 	const caption = escapeHtml(title || text || '');
 	const captionAttr = caption ? ` data-caption="${caption}"` : '';
 	if (!src) return '';
-	return `<a href="${src}" data-fancybox="gallery"${captionAttr}><img src="${src}" alt="${alt}" loading="lazy" referrerpolicy="no-referrer" /></a>`;
+	return `<a href="${src}" data-fancybox="gallery"${captionAttr} style="display:block;text-align:center"><img src="${src}" alt="${alt}" loading="lazy" referrerpolicy="no-referrer" style="display:inline-block;margin:1em auto" /></a>`;
 }) as any;
 
 renderer.paragraph = (({ text }: { text: string }) => {
