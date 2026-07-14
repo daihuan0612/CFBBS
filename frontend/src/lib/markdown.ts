@@ -86,12 +86,14 @@ export function renderMarkdownToHtml(markdown: string, r2PublicUrl?: string) {
 	// 编辑器按钮插入 \u3000\u3000（全角空格）→ 段落渲染器检测行首 \u3000，加 class="md-indent-paragraph"
 	// → CSS .md-indent-paragraph { text-indent: 2em } 实现缩进
 	// \u200B（零宽空格）防止 marked 吞掉文档开头或行首的 \u3000
-	const processed = markdown.replace(/^\u3000+/gm, '\u200B$&');
+	let processed = markdown.replace(/^\u3000+/gm, '\u200B$&');
+	// 转换 !MEDIA(id) 语法为占位元素
+	processed = processed.replace(/!MEDIA\(([a-zA-Z0-9_-]+)\)/g, '<span data-media-id="$1" class="media-inline"></span>');
 	let html = marked.parse(processed) as string;
 	html = DOMPurify.sanitize(html, {
 		ADD_TAGS: ['video', 'source', 'iframe'],
-		ADD_ATTR: ['allowfullscreen', 'frameborder', 'allow', 'referrerpolicy', 'target', 'rel', 'autoplay', 'muted', 'playsinline', 'preload', 'data-fancybox', 'data-caption'],
-		ADD_CLASSES: ['md-indent-paragraph']
+		ADD_ATTR: ['allowfullscreen', 'frameborder', 'allow', 'referrerpolicy', 'target', 'rel', 'autoplay', 'muted', 'playsinline', 'preload', 'data-fancybox', 'data-caption', 'data-media-id'],
+		ADD_CLASSES: ['md-indent-paragraph', 'media-inline']
 	});
 	// 给视频和 iframe 加内联样式居中
 	html = html.replace(/(<video\b)/gi, '$1 style="display:block;margin:1em auto;max-width:100%;max-height:70vh;border-radius:0.5rem"');
@@ -100,6 +102,114 @@ export function renderMarkdownToHtml(markdown: string, r2PublicUrl?: string) {
 }
 
 export { resolveR2Url };
+
+/**
+ * 批量获取媒体文件信息（内存缓存 + localStorage 持久化）
+ */
+const mediaCache = new Map<string, { url: string; media_type: string; mime: string; width?: number | null; height?: number | null; thumbnail?: string | null }>();
+const MEDIA_CACHE_PREFIX = 'media_';
+const MEDIA_CACHE_TTL = 604800_000; // 7 天
+
+function getLocalMediaCache(id: string) {
+	try {
+		const raw = localStorage.getItem(`${MEDIA_CACHE_PREFIX}${id}`);
+		if (!raw) return null;
+		const parsed = JSON.parse(raw);
+		if (Date.now() - parsed.cached_at > MEDIA_CACHE_TTL) {
+			localStorage.removeItem(`${MEDIA_CACHE_PREFIX}${id}`);
+			return null;
+		}
+		return parsed.data;
+	} catch {
+		return null;
+	}
+}
+
+function setLocalMediaCache(id: string, data: any) {
+	try {
+		localStorage.setItem(`${MEDIA_CACHE_PREFIX}${id}`, JSON.stringify({ data, cached_at: Date.now() }));
+	} catch {
+		// localStorage 满时静默失败
+	}
+}
+
+async function batchGetMedia(ids: string[]): Promise<void> {
+	const uncached = ids.filter(id => {
+		if (mediaCache.has(id)) return false;
+		const local = getLocalMediaCache(id);
+		if (local) {
+			mediaCache.set(id, local);
+			return false;
+		}
+		return true;
+	});
+	if (uncached.length === 0) return;
+
+	// 逐个查询（私密论坛用户少，单次查询即可）
+	for (const id of uncached) {
+		try {
+			const res = await fetch(`/api/media/get?id=${encodeURIComponent(id)}`);
+			if (!res.ok) continue;
+			const data = await res.json();
+			if (data.success) {
+				mediaCache.set(id, data);
+				setLocalMediaCache(id, data);
+			}
+		} catch {
+			// 单个失败不影响其他
+		}
+	}
+}
+
+/**
+ * 解析 !MEDIA(id) 占位元素，根据媒体类型渲染 DOM
+ * - image → <a data-fancybox><img></a>
+ * - video → <video controls poster>
+ * - audio → <audio controls>
+ * - file  → 下载链接
+ */
+export async function resolveMediaUrls(root: HTMLElement | null) {
+	if (!root) return;
+	const placeholders = root.querySelectorAll<HTMLSpanElement>('[data-media-id]');
+	if (!placeholders.length) return;
+
+	const ids = Array.from(placeholders).map(el => el.dataset.mediaId || '').filter(Boolean);
+	await batchGetMedia(ids);
+
+	placeholders.forEach((el) => {
+		const mediaId = el.dataset.mediaId;
+		if (!mediaId) return;
+		const media = mediaCache.get(mediaId);
+		if (!media) return;
+
+		el.classList.remove('media-inline');
+		el.removeAttribute('data-media-id');
+
+		switch (media.media_type) {
+			case 'image': {
+				el.outerHTML = `<a href="${media.url}" data-fancybox="gallery" style="display:block;text-align:center"><img src="${media.url}" alt="" loading="lazy" referrerpolicy="no-referrer" style="display:inline-block;max-width:100%;margin:1em auto" /></a>`;
+				break;
+			}
+			case 'video': {
+				const poster = media.thumbnail ? ` poster="${media.thumbnail}"` : '';
+				el.outerHTML = `<video controls preload="metadata"${poster} style="display:block;margin:1em auto;max-width:100%;max-height:70vh;border-radius:0.5rem"><source src="${media.url}"></video>`;
+				break;
+			}
+			case 'audio': {
+				el.outerHTML = `<audio controls style="display:block;margin:1em auto"><source src="${media.url}"></audio>`;
+				break;
+			}
+			default: {
+				// file / unknown → download link
+				const filename = media.url.split('/').pop() || mediaId;
+				el.outerHTML = `<a href="${media.url}" target="_blank" rel="noopener noreferrer" style="display:inline-block;margin:0.5em 0">📎 ${filename}</a>`;
+			}
+		}
+	});
+
+	// 重新挂载 fancybox（新插入的图片）
+	attachFancybox(root);
+}
 
 /**
  * 初始化视频封面：静音播放 0.1 秒加载第一帧画面，然后暂停。

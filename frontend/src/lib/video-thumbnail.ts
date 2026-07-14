@@ -192,12 +192,12 @@ export async function captureAndUpload(videoUrl: string, postId: number): Promis
 /**
  * 上传截取的帧到 R2
  */
-export async function uploadThumbnail(blob: Blob, postId: number): Promise<string> {
+export async function uploadThumbnail(blob: Blob, id: string | number): Promise<string> {
 	const formData = new FormData();
-	const file = new File([blob], `thumb-${postId}.webp`, { type: 'image/webp' });
+	const file = new File([blob], `thumb-${id}.webp`, { type: 'image/webp' });
 	formData.append('file', file);
 	formData.append('type', 'post');
-	formData.append('post_id', String(postId));
+	formData.append('post_id', String(id));
 
 	const res = await fetch(`${API_BASE}/upload`, {
 		method: 'POST',

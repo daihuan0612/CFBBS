@@ -6,6 +6,8 @@ export type ForumConfig = {
 	user_count?: number;
 	jwt_secret_configured?: boolean;
 	r2_public_url?: string;
+	imgbed_domain?: string;
+	imgbed_auth_code?: string;
 	// 二次开发新增
 	invite_only?: boolean;
 	encrypted_attachments_enabled?: boolean;

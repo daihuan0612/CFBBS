@@ -296,6 +296,14 @@
 	text-indent: 0;
 }
 
+/* 媒体占位符，在 resolveMediaUrls 替换前隐藏 */
+.media-inline {
+	display: inline-block;
+	width: 0;
+	height: 0;
+	overflow: hidden;
+}
+
 .prose video {
 	max-width: 100%;
 	max-height: 70vh;

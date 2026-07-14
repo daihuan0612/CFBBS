@@ -556,6 +556,8 @@ export default {
 						user_count: userCount || 0,
 						jwt_secret_configured: !!env.JWT_SECRET && String(env.JWT_SECRET).length >= 32,
 						r2_public_url: (env as any).R2_PUBLIC_BASE_URL || '',
+						imgbed_domain: (env as any).IMGBED_DOMAIN || '',
+						imgbed_auth_code: (env as any).IMGBED_AUTH_CODE || '',
 						...featureFlags
 					};
 				});
@@ -689,6 +691,154 @@ export default {
 			} catch (e) {
 				console.error('Upload error:', e);
 				return handleError(e); // 401/403 will be caught here if auth fails
+			}
+		}
+
+		// POST /api/media/upload — 登记已上传到 ImgBed 的媒体文件
+		if (url.pathname === '/api/media/upload' && method === 'POST') {
+			try {
+				const user = await authenticate(request);
+				const body = await request.json() as {
+					url: string; mime: string; size: number;
+					storage?: string; storage_id?: string;
+					width?: number; height?: number; duration?: number;
+				};
+
+				if (!body.url || !body.mime) {
+					return jsonResponse({ error: '缺少 url 或 mime' }, 400);
+				}
+
+				// MIME 白名单校验
+				const allowedMimes = [
+					'image/', 'video/', 'audio/',
+					'application/pdf', 'application/zip', 'application/x-zip-compressed',
+					'application/x-rar-compressed', 'application/x-7z-compressed',
+				];
+				const isAllowed = allowedMimes.some(prefix => body.mime.startsWith(prefix));
+				if (!isAllowed) {
+					return jsonResponse({ error: '不支持的文件类型' }, 400);
+				}
+
+				// 大小限制
+				const sizeLimit = body.mime.startsWith('image/') ? 10 * 1024 * 1024
+					: body.mime.startsWith('video/') ? 500 * 1024 * 1024
+					: 300 * 1024 * 1024;
+				if (body.size > sizeLimit) {
+					return jsonResponse({ error: '文件大小超过限制' }, 400);
+				}
+
+				const mediaType = body.mime.startsWith('image/') ? 'image'
+					: body.mime.startsWith('video/') ? 'video'
+					: body.mime.startsWith('audio/') ? 'audio'
+					: 'file';
+
+				const mediaId = `m_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`;
+				const now = Math.floor(Date.now() / 1000);
+
+				await env.cforum_db.prepare(
+					`INSERT INTO media_files (id, owner_id, url, media_type, mime, size, width, height, duration, storage, storage_id, status, purpose, created_at, updated_at)
+					 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ready', 'post', ?, ?)`
+				).bind(
+					mediaId, user.id.toString(), body.url, mediaType, body.mime, body.size,
+					body.width || null, body.height || null, body.duration || null,
+					body.storage || 'imgbed', body.storage_id || null,
+					now, now
+				).run();
+
+				return jsonResponse({
+					success: true,
+					id: mediaId,
+					url: body.url,
+					mediaType,
+					mime: body.mime,
+					size: body.size,
+					status: 'ready',
+				});
+			} catch (e) {
+				console.error('Media register error:', e);
+				return handleError(e);
+			}
+		}
+
+		// GET /api/media/get — 获取媒体文件信息
+		if (url.pathname === '/api/media/get' && method === 'GET') {
+			try {
+				const mediaId = url.searchParams.get('id');
+				if (!mediaId) {
+					return jsonResponse({ error: '缺少 id 参数' }, 400);
+				}
+				const row = await env.cforum_db.prepare(
+					'SELECT * FROM media_files WHERE id = ?'
+				).bind(mediaId).first();
+				if (!row) {
+					return jsonResponse({ error: '媒体文件不存在' }, 404);
+				}
+				return jsonResponse({
+					success: true,
+					id: (row as any).id,
+					url: (row as any).url,
+					media_type: (row as any).media_type,
+					mime: (row as any).mime,
+					size: (row as any).size,
+					width: (row as any).width,
+					height: (row as any).height,
+					duration: (row as any).duration,
+					thumbnail: (row as any).thumbnail,
+					status: (row as any).status,
+				}, 200, 'public, max-age=86400, immutable');
+			} catch (e) {
+				console.error('Media get error:', e);
+				return handleError(e);
+			}
+		}
+
+		// POST /api/media/thumbnail — 更新视频缩略图
+		if (url.pathname === '/api/media/thumbnail' && method === 'POST') {
+			try {
+				const user = await authenticate(request);
+				const body = await request.json() as { media_id: string; thumbnail_url: string };
+				if (!body.media_id || !body.thumbnail_url) {
+					return jsonResponse({ error: '缺少 media_id 或 thumbnail_url' }, 400);
+				}
+				// 校验：仅本人或管理员可更新
+				const row = await env.cforum_db.prepare(
+					'SELECT owner_id FROM media_files WHERE id = ?'
+				).bind(body.media_id).first();
+				if (!row) {
+					return jsonResponse({ error: '媒体文件不存在' }, 404);
+				}
+				if (String((row as any).owner_id) !== String(user.id) && user.role !== 'admin') {
+					return jsonResponse({ error: '无权限' }, 403);
+				}
+				const now = Math.floor(Date.now() / 1000);
+				await env.cforum_db.prepare(
+					'UPDATE media_files SET thumbnail = ?, updated_at = ? WHERE id = ?'
+				).bind(body.thumbnail_url, now, body.media_id).run();
+				return jsonResponse({ success: true });
+			} catch (e) {
+				console.error('Media thumbnail error:', e);
+				return handleError(e);
+			}
+		}
+
+		// POST /api/media/attach — 关联媒体文件到帖子
+		if (url.pathname === '/api/media/attach' && method === 'POST') {
+			try {
+				const user = await authenticate(request);
+				const body = await request.json() as { post_id: string; media_ids: string[] };
+				if (!body.post_id || !body.media_ids?.length) {
+					return jsonResponse({ error: '缺少 post_id 或 media_ids' }, 400);
+				}
+				const now = Math.floor(Date.now() / 1000);
+				const stmt = env.cforum_db.prepare(
+					'INSERT OR IGNORE INTO post_media (post_id, media_id, position, created_at) VALUES (?, ?, ?, ?)'
+				);
+				const batch = body.media_ids.map((id, i) => stmt.bind(body.post_id, id, i, now));
+				await env.cforum_db.batch(batch);
+				return jsonResponse({ success: true, count: batch.length });
+			} catch (e) {
+				console.error('Media attach error:', e);
+				return handleError(e);
 			}
 		}
 
@@ -2371,13 +2521,13 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 					return jsonResponse({ error: 'Only admins can post in this category' }, 403);
 				}
 
-				const { success } = await env.cforum_db.prepare(
+				const result = await env.cforum_db.prepare(
 					'INSERT INTO posts (author_id, title, content, category_id) VALUES (?, ?, ?, ?)'
 				).bind(userPayload.id, safeTitle.trim(), content.replace(/^[\t\n\r ]+/, '').replace(/[\t\n\r ]+$/, ''), category_id || null).run();
 
 				await security.logAudit(userPayload.id, 'CREATE_POST', 'post', 'new', { title_length: safeTitle.length }, request);
 
-				return jsonResponse({ success }, 201);
+				return jsonResponse({ success: result.success, id: result.meta?.last_row_id || null }, 201);
 			} catch (e) {
 				return handleError(e);
 			}

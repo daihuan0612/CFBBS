@@ -12,7 +12,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { useConfig } from '@/hooks/use-config';
 import { apiFetch, API_BASE, formatDate, getSecurityHeaders, type Category, type Post } from '@/lib/api';
 import { getToken, getUser } from '@/lib/auth';
-import { attachFancybox, highlightCodeBlocks, initVideoPosters, renderMarkdownToHtml, resolveR2Url } from '@/lib/markdown';
+import { attachFancybox, highlightCodeBlocks, initVideoPosters, renderMarkdownToHtml, resolveMediaUrls, resolveR2Url } from '@/lib/markdown';
+import { uploadMedia, generateVideoThumbnail, attachMediaToPost } from '@/lib/media';
 import { getFirstVideoUrl } from '@/lib/video-thumbnail';
 import { VideoThumbnail } from '@/components/video-thumbnail';
 import { validateText } from '@/lib/validators';
@@ -41,7 +42,7 @@ export function IndexPage() {
 	const [createOpen, setCreateOpen] = React.useState(false);
 	const [createLoading, setCreateLoading] = React.useState(false);
 	const [createError, setCreateError] = React.useState('');
-	const [uploadLoading, setUploadLoading] = React.useState(false);
+	const [uploadProgress, setUploadProgress] = React.useState<number | null>(null);
 	const [uploadError, setUploadError] = React.useState('');
 
 	// 编辑器增强: 视频/网盘对话框
@@ -459,6 +460,7 @@ export function IndexPage() {
 		if (!el) return;
 		highlightCodeBlocks(el);
 		initVideoPosters(el);
+		resolveMediaUrls(el);
 		const cleanup = attachFancybox(el);
 		return cleanup;
 	}, [previewOpen, newContent]);
@@ -565,6 +567,11 @@ export function IndexPage() {
 					category_id: newCategoryId ? Number(newCategoryId) : null,
 					'cf-turnstile-response': turnstileToken
 				})
+			}).then(async (res) => {
+				// 关联媒体文件到帖子
+				if (res && (res as any).id) {
+					await attachMediaToPost((res as any).id, newContent);
+				}
 			});
 			setNewTitle('');
 			setNewContent('');
@@ -795,69 +802,75 @@ export function IndexPage() {
 								</div>
 							</div>
 								{user?.role === 'admin' ? (
-		// 图片上传（增强版: 非图片拦截 + Luban压缩 + WebP转码）
+		// 文件上传（图片/视频: Luban压缩 + WebP转码 + 视频缩略图）
 		<div className="space-y-2">
-			<label className="block text-sm font-medium text-muted-foreground">上传图片</label>
+			<label className="block text-sm font-medium text-muted-foreground">上传文件</label>
 			<input
 				type="file"
-				accept="image/*"
+				accept="*"
 				className="block w-full text-sm"
 				onChange={async (e) => {
 					const file = e.target.files && e.target.files[0];
 					if (!file) return;
 					setUploadError('');
 
-					// 非图片文件拦截
-					if (!file.type.startsWith('image/')) {
-						setUploadError('仅支持图片文件');
-						return;
-					}
-
-					// Luban 本地压缩 + WebP 转换
+					// 视频不压缩，直接上传
 					let processedFile = file;
-					try {
-						const imageCompression = (await import('browser-image-compression')).default;
-						processedFile = await imageCompression(file, {
-							maxSizeMB: 1,
-							maxWidthOrHeight: 1920,
-							useWebWorker: true,
-							fileType: 'image/webp',
-							initialQuality: 0.85
-						});
-					} catch {
-						// fallback: 如果压缩失败直接用原文件
+					let finalMime = file.type;
+					let finalName = file.name;
+
+					if (file.type.startsWith('image/')) {
+						// Luban 本地压缩 + WebP 转换
+						try {
+							const imageCompression = (await import('browser-image-compression')).default;
+							processedFile = await imageCompression(file, {
+								maxSizeMB: 1,
+								maxWidthOrHeight: 1920,
+								useWebWorker: true,
+								fileType: 'image/webp',
+								initialQuality: 0.85
+							});
+						} catch {
+							// fallback: 如果压缩失败直接用原文件
+						}
+						finalMime = 'image/webp';
+						finalName = processedFile.name.replace(/\.[^.]+$/, '.webp');
 					}
 
-					setUploadLoading(true);
+					setUploadProgress(0);
 					try {
-						const formData = new FormData();
-						// 使用压缩后的文件，重命名为 .webp
-						const webpFile = new File([processedFile], processedFile.name.replace(/\.[^.]+$/, '.webp'), { type: 'image/webp' });
-						formData.append('file', webpFile);
-						formData.append('type', 'post');
-						const res = await fetch(`${API_BASE}/upload`, {
-							method: 'POST',
-							headers: getSecurityHeaders('POST', null),
-							body: formData
-						});
-						const data = await res.json();
-						if (!res.ok) throw new Error(data?.error || '上传失败');
-                        // insert markdown link at cursor and ensure preview is visible
-                        insertIntoContent(`
-
-![](${data.url})
-
-`);
-                        setPreviewOpen(true);
+						if (config?.imgbed_domain && config?.imgbed_auth_code) {
+							// 走 ImgBed 上传（带进度回调）
+							const uploadFile = new File([processedFile], finalName, { type: finalMime });
+							const result = await uploadMedia(uploadFile, config.imgbed_domain, config.imgbed_auth_code, setUploadProgress);
+							insertIntoContent(`\n\n!MEDIA(${result.id})\n`);
+							// 视频异步生成缩略图
+							if (file.type.startsWith('video/')) {
+								generateVideoThumbnail(result.id, result.url);
+							}
+						} else {
+							throw new Error('上传功能暂不可用（未配置图床）');
+						}
+						setPreviewOpen(true);
 					} catch (err: any) {
 						setUploadError(String(err?.message || err));
 					} finally {
-						setUploadLoading(false);
+						setUploadProgress(null);
 					}
 				}}
 			/>
 			{uploadError ? <div className="text-sm text-destructive">{uploadError}</div> : null}
-			{uploadLoading ? <div className="text-sm text-muted-foreground">上传中…</div> : null}
+			{uploadProgress !== null ? (
+				<div className="flex items-center gap-2">
+					<div className="h-2 w-full max-w-[200px] rounded-full bg-muted overflow-hidden">
+						<div className="h-full bg-primary transition-all duration-200 rounded-full"
+							style={{ width: `${uploadProgress}%` }} />
+					</div>
+					<span className="text-xs text-muted-foreground tabular-nums">
+						{uploadProgress < 100 ? `${uploadProgress}%` : '登记中...'}
+					</span>
+				</div>
+			) : null}
 		</div>
 	) : null}
 		<TurnstileWidget enabled={turnstileActive} siteKey={siteKey} onToken={setTurnstileToken} resetKey={turnstileResetKey} />

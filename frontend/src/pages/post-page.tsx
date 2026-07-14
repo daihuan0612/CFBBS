@@ -13,7 +13,8 @@ import { MarkdownEditor } from '@/components/markdown-editor';
 import { useConfig } from '@/hooks/use-config';
 import { apiFetch, API_BASE, formatDate, getSecurityHeaders, type Category, type Comment, type Post } from '@/lib/api';
 import { getToken, getUser } from '@/lib/auth';
-import { attachFancybox, highlightCodeBlocks, initVideoPosters, renderMarkdownToHtml } from '@/lib/markdown';
+import { attachFancybox, highlightCodeBlocks, initVideoPosters, renderMarkdownToHtml, resolveMediaUrls } from '@/lib/markdown';
+import { attachMediaToPost } from '@/lib/media';
 import { validateText } from '@/lib/validators';
 
 export function PostPage() {
@@ -163,6 +164,7 @@ export function PostPage() {
 		if (!el) return;
 		highlightCodeBlocks(el);
 		initVideoPosters(el);
+		resolveMediaUrls(el);
 		const cleanup = attachFancybox(el);
 		return cleanup;
 	}, [post, comments.length, isEditing]);
@@ -338,6 +340,8 @@ export function PostPage() {
 				headers: getSecurityHeaders('PUT'),
 				body: JSON.stringify({ title: editTitle, content: editContent, category_id: post.category_id })
 			});
+			// 关联媒体文件到帖子
+			await attachMediaToPost(post.id, editContent);
 			setIsEditing(false);
 			await refresh();
 		} catch (e: any) {
@@ -500,7 +504,7 @@ export function PostPage() {
 										<div className="space-y-2">
 											<Input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} maxLength={60} />
 										</div>
-										<MarkdownEditor content={editContent} setContent={setEditContent} placeholder="写下你的内容..." r2PublicUrl={config?.r2_public_url} userRole={user?.role} />
+										<MarkdownEditor content={editContent} setContent={setEditContent} placeholder="写下你的内容..." r2PublicUrl={config?.r2_public_url} userRole={user?.role} imgbedDomain={config?.imgbed_domain} imgbedAuthCode={config?.imgbed_auth_code} />
 										<Button onClick={saveEdit} disabled={editLoading}>
 											{editLoading ? '保存中...' : '保存'}
 										</Button>

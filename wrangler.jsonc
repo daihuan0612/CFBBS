@@ -17,7 +17,7 @@
 		{
 			"binding": "cforum_db",
 			"database_name": "cforum-db",
-			"database_id": "c5b0855f-3025-4e0a-b08e-ca02f725757b",
+			"database_id": "b86e862b-6fe1-4593-ab59-acbdbdbcbd49",
 			"remote": true,
 			"migrations_dir": "migrations"
 		}
@@ -25,7 +25,7 @@
 	/**
 	 * R2 Object Storage (for image uploads)
 	 * 如果账号未开通 R2，注释掉下面配置即可正常部署
-	 * 开通后取消注释并运行: wrangler r2 bucket create cforum-images
+	 * 开通后取消注释并运行: wrangler r2 bucket create BUCKET
 	 * https://developers.cloudflare.com/r2/api/workers/workers-api-reference/
 	 */
 	"r2_buckets": [
@@ -103,6 +103,10 @@
 	 * Service Bindings (communicate between multiple Workers)
 	 * https://developers.cloudflare.com/workers/wrangler/configuration/#service-bindings
 	 */
+	"vars": {
+		"IMGBED_DOMAIN": "https://yun.siyou.qzz.io",
+		"IMGBED_AUTH_CODE": "123456"
+	}
 	// "services": [  {   "binding": "MY_SERVICE",   "service": "my-service"  } ]
 
 }

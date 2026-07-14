@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { API_BASE, getSecurityHeaders } from '@/lib/api';
+import { uploadMedia, generateVideoThumbnail } from '@/lib/media';
 import { renderMarkdownToHtml } from '@/lib/markdown';
 import 'remixicon/fonts/remixicon.css';
 
@@ -19,16 +19,18 @@ interface MarkdownEditorProps {
 	placeholder?: string;
 	r2PublicUrl?: string;
 	userRole?: string;
+	imgbedDomain?: string;
+	imgbedAuthCode?: string;
 }
 
 /**
  * CodeMirror 6 + Markdown Toolbar editor for CFBBS.
  */
-export function MarkdownEditor({ content, setContent, placeholder: ph, r2PublicUrl, userRole }: MarkdownEditorProps) {
+export function MarkdownEditor({ content, setContent, placeholder: ph, r2PublicUrl, userRole, imgbedDomain, imgbedAuthCode }: MarkdownEditorProps) {
 	const editorRef = useRef<HTMLDivElement>(null);
 	const viewRef = useRef<EditorView | null>(null);
 	const [isDark, setIsDark] = React.useState(false);
-	const [uploadLoading, setUploadLoading] = React.useState(false);
+	const [uploadProgress, setUploadProgress] = React.useState<number | null>(null);
 
 	// Dialog states
 	const [videoDialogOpen, setVideoDialogOpen] = React.useState(false);
@@ -354,29 +356,54 @@ export function MarkdownEditor({ content, setContent, placeholder: ph, r2PublicU
 	const handleImageUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
 		const file = e.target.files?.[0];
 		if (!file) return;
-		setUploadLoading(true);
+		setUploadProgress(0);
 		try {
-			if (file.size > 2 * 1024 * 1024) {
-				throw new Error('文件过大 (最大 2MB)');
+			let uploadFile = file;
+			let finalMime = file.type;
+			let finalName = file.name;
+
+			// 图片文件进行 Luban 压缩（GIF 除外）
+			if (file.type.startsWith('image/') && !file.type.startsWith('image/gif')) {
+				try {
+					const imageCompression = (await import('browser-image-compression')).default;
+					const compressed = await imageCompression(file, {
+						maxSizeMB: 1,
+						maxWidthOrHeight: 1920,
+						useWebWorker: true,
+						fileType: 'image/webp',
+						initialQuality: 0.85,
+					});
+					uploadFile = compressed;
+					finalMime = 'image/webp';
+					finalName = compressed.name.replace(/\.[^.]+$/, '.webp');
+				} catch {
+					// 压缩失败用原文件
+				}
 			}
-			const formData = new FormData();
-			formData.append('file', file);
-			formData.append('type', 'post');
-			const res = await fetch(`${API_BASE}/upload`, {
-				method: 'POST',
-				headers: getSecurityHeaders('POST', null as any),
-				body: formData,
-			});
-			const data = await res.json();
-			if (!res.ok) throw new Error(data?.error || '上传失败');
-			replaceSelection(`\n![](${data.url})\n`);
+
+			if (imgbedDomain && imgbedAuthCode) {
+				// 走 ImgBed 上传（带进度回调）
+				const result = await uploadMedia(
+					new File([uploadFile], finalName, { type: finalMime }),
+					imgbedDomain,
+					imgbedAuthCode,
+					setUploadProgress
+				);
+				replaceSelection(`\n!MEDIA(${result.id})\n`);
+				// 视频异步生成缩略图
+				if (file.type.startsWith('video/')) {
+					generateVideoThumbnail(result.id, result.url);
+				}
+			} else {
+				throw new Error('上传功能暂不可用（未配置图床）');
+			}
 		} catch (err: any) {
 			console.error('Upload failed:', err);
 		} finally {
-			setUploadLoading(false);
+			setUploadProgress(null);
 			e.target.value = '';
 		}
-	}, [replaceSelection]);
+	}, [replaceSelection, imgbedDomain, imgbedAuthCode]);
 
 	return (
 		<div className="space-y-3">
@@ -418,16 +445,35 @@ export function MarkdownEditor({ content, setContent, placeholder: ph, r2PublicU
 					onClick={() => setImageDialogOpen(true)}><i className="ri-image-line text-sm leading-none" /></Button>
 				<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="插入网盘链接"
 					onClick={() => setCloudDialogOpen(true)}><i className="ri-cloud-line text-sm leading-none" /></Button>
-				{userRole === 'admin' ? (
-					<label className="relative cursor-pointer">
-						<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="上传图片"
-							disabled={uploadLoading} asChild>
-							<span><i className="ri-image-add-line text-sm leading-none" /></span>
-						</Button>
-						<input type="file" accept="image/*" className="absolute inset-0 opacity-0 cursor-pointer"
-							onChange={handleImageUpload} disabled={uploadLoading} />
-					</label>
-				) : null}
+				{uploadProgress !== null ? (
+					<div className="flex items-center gap-2 px-1">
+						<div className="h-2 w-20 rounded-full bg-muted overflow-hidden">
+							<div className="h-full bg-primary transition-all duration-200 rounded-full"
+								style={{ width: `${uploadProgress}%` }} />
+						</div>
+						<span className="text-xs text-muted-foreground min-w-[4rem] tabular-nums">
+							{uploadProgress < 100 ? `${uploadProgress}%` : '登记中...'}
+						</span>
+					</div>
+				) : imgbedDomain && imgbedAuthCode ? (
+				<label className="relative cursor-pointer">
+					<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="上传文件"
+						disabled={uploadProgress !== null} asChild>
+						<span><i className="ri-image-add-line text-sm leading-none" /></span>
+					</Button>
+					<input type="file" className="absolute inset-0 opacity-0 cursor-pointer"
+						onChange={handleImageUpload} disabled={uploadProgress !== null} />
+				</label>
+			) : userRole === 'admin' ? (
+				<label className="relative cursor-pointer">
+					<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="上传图片"
+						disabled={uploadProgress !== null} asChild>
+						<span><i className="ri-image-add-line text-sm leading-none" /></span>
+					</Button>
+					<input type="file" accept="image/*" className="absolute inset-0 opacity-0 cursor-pointer"
+						onChange={handleImageUpload} disabled={uploadProgress !== null} />
+				</label>
+			) : null}
 			</div>
 
 			{/* Editor area */}
