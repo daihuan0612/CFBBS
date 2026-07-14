@@ -1,7 +1,8 @@
 import { API_BASE, getSecurityHeaders } from './api';
 
-// 跳到视频 25% 位置，避开开头黑帧，竖屏视频也能看到主体
-const SEEK_RATIO = 0.25;
+// 跳到视频 10% 位置（最远 0.8s），避开开头黑帧又控制流量
+const MAX_SEEK = 0.8;
+const SEEK_RATIO = 0.1;
 // localStorage 缓存前缀
 const CACHE_PREFIX = 'vt:';
 // 截帧超时（视频加载 + seek 15s 足够）
@@ -68,7 +69,7 @@ export function getCaptureUrl(videoUrl: string): string {
 }
 
 /**
- * 捕获视频帧：创建隐藏 video → seek 到 0.3s → canvas 截帧
+ * 捕获视频帧：创建隐藏 video → seek 到靠前位置 → canvas 截帧
  */
 export async function captureVideoFrame(videoUrl: string): Promise<Blob> {
 	return new Promise((resolve, reject) => {
@@ -106,8 +107,9 @@ export async function captureVideoFrame(videoUrl: string): Promise<Blob> {
 		}, CAPTURE_TIMEOUT);
 
 		video.addEventListener('loadedmetadata', () => {
-			// 按时长比例跳转，避免固定 0.3s 对竖屏视频不友好
-			video.currentTime = video.duration * SEEK_RATIO;
+			// 固定 0.3s 对竖屏视频不友好，但 seek 越远 Range 越大
+			// 折中：10% 位置，但不超过 0.8s
+			video.currentTime = Math.min(video.duration * SEEK_RATIO, MAX_SEEK);
 		});
 
 		video.addEventListener('seeked', async () => {
