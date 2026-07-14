@@ -18,12 +18,13 @@ interface MarkdownEditorProps {
 	setContent: (content: string) => void;
 	placeholder?: string;
 	r2PublicUrl?: string;
+	userRole?: string;
 }
 
 /**
  * CodeMirror 6 + Markdown Toolbar editor for CFBBS.
  */
-export function MarkdownEditor({ content, setContent, placeholder: ph, r2PublicUrl }: MarkdownEditorProps) {
+export function MarkdownEditor({ content, setContent, placeholder: ph, r2PublicUrl, userRole }: MarkdownEditorProps) {
 	const editorRef = useRef<HTMLDivElement>(null);
 	const viewRef = useRef<EditorView | null>(null);
 	const [isDark, setIsDark] = React.useState(false);
@@ -417,14 +418,16 @@ export function MarkdownEditor({ content, setContent, placeholder: ph, r2PublicU
 					onClick={() => setImageDialogOpen(true)}><i className="ri-image-line text-sm leading-none" /></Button>
 				<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="插入网盘链接"
 					onClick={() => setCloudDialogOpen(true)}><i className="ri-cloud-line text-sm leading-none" /></Button>
-				<label className="relative cursor-pointer">
-					<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="上传图片"
-						disabled={uploadLoading} asChild>
-						<span><i className="ri-image-add-line text-sm leading-none" /></span>
-					</Button>
-					<input type="file" accept="image/*" className="absolute inset-0 opacity-0 cursor-pointer"
-						onChange={handleImageUpload} disabled={uploadLoading} />
-				</label>
+				{userRole === 'admin' ? (
+					<label className="relative cursor-pointer">
+						<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="上传图片"
+							disabled={uploadLoading} asChild>
+							<span><i className="ri-image-add-line text-sm leading-none" /></span>
+						</Button>
+						<input type="file" accept="image/*" className="absolute inset-0 opacity-0 cursor-pointer"
+							onChange={handleImageUpload} disabled={uploadLoading} />
+					</label>
+				) : null}
 			</div>
 
 			{/* Editor area */}

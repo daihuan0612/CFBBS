@@ -662,6 +662,11 @@ export default {
 				const postId = formData.get('post_id') || 'general';
 				const type = formData.get('type') || 'post';
 
+				// 普通会员只能上传头像，不允许上传帖子图片
+				if (user.role !== 'admin' && type !== 'avatar') {
+					return jsonResponse({ error: '仅管理员可上传文件，普通会员请使用图片直链' }, 403);
+				}
+
 				if (!file || !(file instanceof File)) {
 					return jsonResponse({ error: '未上传文件' }, 400);
 				}

@@ -500,7 +500,7 @@ export function PostPage() {
 										<div className="space-y-2">
 											<Input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} maxLength={60} />
 										</div>
-										<MarkdownEditor content={editContent} setContent={setEditContent} placeholder="写下你的内容..." r2PublicUrl={config?.r2_public_url} />
+										<MarkdownEditor content={editContent} setContent={setEditContent} placeholder="写下你的内容..." r2PublicUrl={config?.r2_public_url} userRole={user?.role} />
 										<Button onClick={saveEdit} disabled={editLoading}>
 											{editLoading ? '保存中...' : '保存'}
 										</Button>
