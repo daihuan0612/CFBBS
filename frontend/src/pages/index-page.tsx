@@ -981,7 +981,7 @@ export function IndexPage() {
 												<VideoThumbnail
 													videoUrl={videoUrl}
 													postId={p.id}
-													className="hidden sm:block h-20 w-28 shrink-0 rounded-md object-cover object-top"
+													className="hidden sm:block h-20 w-28 shrink-0 rounded-md object-cover object-center"
 												/>
 											) : null}
 											<div className="min-w-0 flex-1 space-y-1">

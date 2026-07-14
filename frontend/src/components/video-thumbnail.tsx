@@ -49,7 +49,7 @@ export function VideoThumbnail({
 			<img
 				src={url}
 				alt=""
-				className={className || 'hidden sm:block h-20 w-28 shrink-0 rounded-md object-cover object-top'}
+				className={className || 'hidden sm:block h-20 w-28 shrink-0 rounded-md object-cover object-center'}
 				loading="lazy"
 			/>
 		);
