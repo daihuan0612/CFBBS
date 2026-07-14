@@ -2543,7 +2543,9 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 					return jsonResponse({ error: '缺少 url 参数' }, 400);
 				}
 				// 只允许代理视频文件，防止滥用
-				const isVideo = /\.(mp4|webm|mov|ogg|mkv)(\?|$)/i.test(targetUrl);
+				// 优先校验视频文件扩展名；video.twimg.com 等 CDN 可能不带扩展名，也放行
+				const isVideo = /\.(mp4|webm|mov|ogg|mkv|m3u8)(\?|$)/i.test(targetUrl)
+					|| /video\.twimg\.com/i.test(targetUrl);
 				if (!isVideo) {
 					return jsonResponse({ error: '只允许代理视频文件' }, 400);
 				}
