@@ -2549,10 +2549,12 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 				}
 				// 透传 Range 头（支持视频 metadata 加载和 seek）
 				const range = request.headers.get('Range') || '';
+				// 透传浏览器 User-Agent，某些 CDN 会拦截非标准 UA（如 video.twimg.com）
+				const userAgent = request.headers.get('User-Agent') || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
 				const proxyRes = await fetch(targetUrl, {
 					headers: {
 						...(range ? { Range: range } : {}),
-						'User-Agent': 'Mozilla/5.0 (compatible; CFBBS/1.0)',
+						'User-Agent': userAgent,
 					},
 				});
 				const proxyHeaders = new Headers(proxyRes.headers);
