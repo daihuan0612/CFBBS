@@ -290,8 +290,13 @@
 	border-radius: 0.5rem;
 }
 
-.prose p:has(> a[data-fancybox]) {
+.prose a[data-fancybox] {
+	display: block;
 	text-align: center;
+}
+.prose a[data-fancybox] img {
+	display: inline-block;
+	margin: 1em auto;
 }
 
 .prose video {
