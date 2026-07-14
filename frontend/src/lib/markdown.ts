@@ -90,7 +90,7 @@ export function renderMarkdownToHtml(markdown: string, r2PublicUrl?: string) {
 	let html = marked.parse(processed) as string;
 	html = DOMPurify.sanitize(html, {
 		ADD_TAGS: ['video', 'source', 'iframe'],
-		ADD_ATTR: ['allowfullscreen', 'frameborder', 'allow', 'referrerpolicy', 'target', 'rel', 'autoplay', 'muted', 'playsinline', 'preload'],
+		ADD_ATTR: ['allowfullscreen', 'frameborder', 'allow', 'referrerpolicy', 'target', 'rel', 'autoplay', 'muted', 'playsinline', 'preload', 'data-fancybox', 'data-caption'],
 		ADD_CLASSES: ['md-indent-paragraph']
 	});
 	return html;

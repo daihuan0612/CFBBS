@@ -1982,7 +1982,7 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 				const sortDir = sortDirRaw === 'asc' ? 'ASC' : 'DESC';
 
 				let query = `SELECT
-                        posts.id, posts.title, posts.author_id, posts.category_id, posts.is_pinned, posts.view_count, posts.created_at,
+                        posts.id, posts.title, posts.content, posts.author_id, posts.category_id, posts.is_pinned, posts.view_count, posts.created_at,
                         users.username as author_name,
                         users.avatar_url as author_avatar,
                         users.role as author_role,
