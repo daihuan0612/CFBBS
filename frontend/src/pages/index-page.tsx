@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Bold, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Eye, EyeOff, Image, Italic, Heart, MessageCircle, MoreVertical, Pin, Quote, RefreshCw, Search, Shield, Trash2, User, X, AlignCenter, Indent, Video, Cloud } from 'lucide-react';
+import { Bold, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Eye, EyeOff, Image, Italic, Heart, MessageCircle, MoreVertical, Pin, Quote, RefreshCw, Search, Shield, Trash2, User, X, AlignCenter, Video, Cloud } from 'lucide-react';
 
 import { TurnstileWidget } from '@/components/turnstile';
 import { PageShell } from '@/components/page-shell';
@@ -179,28 +179,18 @@ export function IndexPage() {
 		});
 	}
 
-	// 编辑器增强: 居中
+	// 编辑器增强: 加粗
+  function insertBold() { wrapSelection('**', '**', '加粗文字'); }
+  // 编辑器增强: 斜体
+  function insertItalic() { wrapSelection('*', '*', '斜体文字'); }
+  // 编辑器增强: 引用
+  function insertQuote() {
+    transformLines((line) => `> ${line}`);
+  }
+
+  // 编辑器增强: 居中
 	function insertCenter() {
 		wrapSelection('<center>\n', '\n</center>', 'text');
-	}
-
-	// 编辑器增强: 缩进
-	function insertIndent() {
-		applyEdit((text, start, end) => {
-			const selected = text.slice(start, end) || '缩进内容';
-			const indented = selected.split('\n').map(l => l ? '  ' + l : l).join('\n');
-			const next = text.slice(0, start) + indented + text.slice(end);
-			return { text: next, selectionStart: start, selectionEnd: start + indented.length };
-		});
-	}
-
-	// 编辑器增强: 加粗
-	function insertBold() { wrapSelection('**', '**', '加粗文字'); }
-	// 编辑器增强: 斜体
-	function insertItalic() { wrapSelection('*', '*', '斜体文字'); }
-	// 编辑器增强: 引用
-	function insertQuote() {
-		transformLines((line) => `> ${line}`);
 	}
 
 	// 编辑器增强: 首行缩进（中文全角空格）
@@ -746,10 +736,6 @@ export function IndexPage() {
 										<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="居中" onClick={insertCenter}>
 											<AlignCenter className="h-3.5 w-3.5" />
 										</Button>
-										{/* 缩进 */}
-										<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="增加缩进" onClick={insertIndent}>
-											<Indent className="h-3.5 w-3.5" />
-										</Button>
 										{/* 首行缩进 */}
 										<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="首行缩进（全角空格）" onClick={formatParagraphIndent}>
 											<svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12H9"/><path d="M21 6H3"/><path d="M21 18H3"/><polyline points="7 8 3 12 7 16"/></svg>
@@ -802,7 +788,8 @@ export function IndexPage() {
 									) : null}
 								</div>
 							</div>
-								{/* 图片上传（增强版: 非图片拦截 + Luban压缩 + WebP转码） */}
+								{user?.role === 'admin' ? (
+		// 图片上传（增强版: 非图片拦截 + Luban压缩 + WebP转码）
 		<div className="space-y-2">
 			<label className="block text-sm font-medium text-muted-foreground">上传图片</label>
 			<input
@@ -866,6 +853,7 @@ export function IndexPage() {
 			{uploadError ? <div className="text-sm text-destructive">{uploadError}</div> : null}
 			{uploadLoading ? <div className="text-sm text-muted-foreground">上传中…</div> : null}
 		</div>
+	) : null}
 		<TurnstileWidget enabled={turnstileActive} siteKey={siteKey} onToken={setTurnstileToken} resetKey={turnstileResetKey} />
 
 								<Button type="submit" disabled={createLoading}>
