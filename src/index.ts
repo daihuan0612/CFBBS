@@ -2535,6 +2535,36 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 			} catch (e) { return handleError(e); }
 		}
 
+		// GET /api/video-proxy — 给外部视频加 CORS 头，供截帧使用
+		if (url.pathname === '/api/video-proxy' && method === 'GET') {
+			try {
+				const targetUrl = url.searchParams.get('url');
+				if (!targetUrl) {
+					return jsonResponse({ error: '缺少 url 参数' }, 400);
+				}
+				// 只允许代理视频文件，防止滥用
+				const isVideo = /\.(mp4|webm|mov|ogg|mkv)(\?|$)/i.test(targetUrl);
+				if (!isVideo) {
+					return jsonResponse({ error: '只允许代理视频文件' }, 400);
+				}
+				// 透传 Range 头（支持视频 metadata 加载和 seek）
+				const range = request.headers.get('Range') || '';
+				const proxyRes = await fetch(targetUrl, {
+					headers: {
+						...(range ? { Range: range } : {}),
+						'User-Agent': 'Mozilla/5.0 (compatible; CFBBS/1.0)',
+					},
+				});
+				const proxyHeaders = new Headers(proxyRes.headers);
+				proxyHeaders.set('Access-Control-Allow-Origin', '*');
+				proxyHeaders.set('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+				proxyHeaders.set('Access-Control-Allow-Headers', '*');
+				// 只透传部分状态码（206 Partial Content 用于 range 请求）
+				const status = proxyRes.status === 206 ? 206 : proxyRes.status;
+				return new Response(proxyRes.body, { status, headers: proxyHeaders });
+			} catch (e) { return handleError(e); }
+		}
+
 		if (method === 'GET' && !url.pathname.startsWith('/api')) {
 			const pathname = url.pathname;
 			const postMatch = pathname.match(/^\/posts\/(\d+)$/);

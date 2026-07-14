@@ -43,6 +43,27 @@ export function getFirstVideoUrl(markdown: string): string | null {
 }
 
 /**
+ * 判断视频 URL 是否需要通过代理截帧（跨域视频需要 CORS）
+ */
+export function needsProxy(videoUrl: string): boolean {
+	if (videoUrl.startsWith('/') || videoUrl.startsWith('data:')) return false;
+	try {
+		const url = new URL(videoUrl, window.location.origin);
+		return url.origin !== window.location.origin;
+	} catch {
+		return false;
+	}
+}
+
+/**
+ * 获取视频代理 URL（仅跨域视频才走代理）
+ */
+export function getCaptureUrl(videoUrl: string): string {
+	if (!needsProxy(videoUrl)) return videoUrl;
+	return `${API_BASE}/video-proxy?url=${encodeURIComponent(videoUrl)}`;
+}
+
+/**
  * 捕获视频帧：创建隐藏 video → seek 到 0.3s → canvas 截帧
  */
 export async function captureVideoFrame(videoUrl: string): Promise<Blob> {

@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { Film } from 'lucide-react';
-import { captureVideoFrame, getCachedThumbnail, setCachedThumbnail, uploadThumbnail } from '@/lib/video-thumbnail';
+import { captureVideoFrame, getCachedThumbnail, getCaptureUrl, setCachedThumbnail, uploadThumbnail } from '@/lib/video-thumbnail';
 
 type ThumbnailState =
 	| { status: 'cached' | 'uploaded'; url: string }
@@ -28,7 +28,9 @@ export function VideoThumbnail({
 
 		(async () => {
 			try {
-				const blob = await captureVideoFrame(videoUrl);
+				// 跨域视频通过代理截帧，同域直连
+				const captureUrl = getCaptureUrl(videoUrl);
+				const blob = await captureVideoFrame(captureUrl);
 				if (cancelled) return;
 				const url = await uploadThumbnail(blob, postId);
 				if (cancelled) return;
