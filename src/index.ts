@@ -52,9 +52,15 @@ interface DBSetting { value: string; }
 function extractImageUrls(content: string): string[] {
 	if (!content) return [];
 	const urls: string[] = [];
-	const regex = /!\[.*?\]\((.*?)\)/g;
+	// Match markdown image syntax: ![alt](url)
+	const mdRegex = /!\[.*?\]\((.*?)\)/g;
 	let match;
-	while ((match = regex.exec(content)) !== null) {
+	while ((match = mdRegex.exec(content)) !== null) {
+		urls.push(match[1]);
+	}
+	// Match HTML <img> tags: <img src="url">
+	const imgRegex = /<img[^>]+src=["']([^"']+)["']/gi;
+	while ((match = imgRegex.exec(content)) !== null) {
 		urls.push(match[1]);
 	}
 	return urls;
@@ -1762,6 +1768,16 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 				const posts = await env.cforum_db.prepare('SELECT content FROM posts').all();
 				for (const p of posts.results) {
 					const urls = extractImageUrls(p.content as string);
+					for (const uUrl of urls) {
+						const key = uUrl ? getKeyFromUrl(env as unknown as S3Env, uUrl) : null;
+						if (key) usedKeys.add(key);
+					}
+				}
+
+				// Comments images (评论也可能包含图片引用)
+				const comments = await env.cforum_db.prepare('SELECT content FROM comments').all();
+				for (const c of comments.results) {
+					const urls = extractImageUrls(c.content as string);
 					for (const uUrl of urls) {
 						const key = uUrl ? getKeyFromUrl(env as unknown as S3Env, uUrl) : null;
 						if (key) usedKeys.add(key);
