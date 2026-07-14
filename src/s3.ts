@@ -93,10 +93,7 @@ export function getKeyFromUrl(env: S3Env, imageUrl: string): string | null {
     if (env.BUCKET) {
         if (!imageUrl.includes('://') && !imageUrl.startsWith('/')) return imageUrl;
         if (imageUrl.startsWith('/r2/')) return imageUrl.slice('/r2/'.length);
-        if (env.R2_PUBLIC_BASE_URL) {
-            const base = env.R2_PUBLIC_BASE_URL.replace(/\/+$/, '');
-            if (imageUrl.startsWith(base + '/')) return imageUrl.slice(base.length + 1);
-        }
+        // URL 路径解析优先于 R2_PUBLIC_BASE_URL，避免 BASE_URL 不带 /r2 路径时误提取
         if (imageUrl.includes('://')) {
             try {
                 const parsed = new URL(imageUrl);
@@ -104,6 +101,10 @@ export function getKeyFromUrl(env: S3Env, imageUrl: string): string | null {
             } catch (e) {
                 return null;
             }
+        }
+        if (env.R2_PUBLIC_BASE_URL) {
+            const base = env.R2_PUBLIC_BASE_URL.replace(/\/+$/, '');
+            if (imageUrl.startsWith(base + '/')) return imageUrl.slice(base.length + 1);
         }
     }
 
