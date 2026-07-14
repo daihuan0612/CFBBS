@@ -4,6 +4,10 @@ import { API_BASE, getSecurityHeaders } from './api';
 const SEEK_TIME = 0.3;
 // localStorage 缓存前缀
 const CACHE_PREFIX = 'vt:';
+// 截帧超时（视频加载 + seek 15s 足够）
+const CAPTURE_TIMEOUT = 15000;
+// 正在截帧中的视频 URL，避免同 URL 重复截帧
+const inFlightCaptures = new Map<string, Promise<string>>();
 
 /**
  * 从 localStorage 获取缓存的缩略图 URL
@@ -83,14 +87,23 @@ export async function captureVideoFrame(videoUrl: string): Promise<Blob> {
 		document.body.appendChild(video);
 
 		let cleanedUp = false;
+		let timeout: ReturnType<typeof setTimeout> | null = null;
+
 		const cleanup = () => {
 			if (cleanedUp) return;
 			cleanedUp = true;
+			if (timeout !== null) clearTimeout(timeout);
 			video.pause();
 			video.removeAttribute('src');
 			video.load();
 			if (video.parentNode) video.parentNode.removeChild(video);
 		};
+
+		// 超时保护：防止视频加载卡死导致 DOM 残留
+		timeout = setTimeout(() => {
+			cleanup();
+			reject(new Error('截帧超时'));
+		}, CAPTURE_TIMEOUT);
 
 		video.addEventListener('loadedmetadata', () => {
 			video.currentTime = SEEK_TIME;
@@ -134,6 +147,29 @@ export async function captureVideoFrame(videoUrl: string): Promise<Blob> {
 
 		video.load();
 	});
+}
+
+/**
+ * 截帧并上传，带防重复（同一 videoUrl 同时只截一次）
+ */
+export async function captureAndUpload(videoUrl: string, postId: number): Promise<string> {
+	const existing = inFlightCaptures.get(videoUrl);
+	if (existing) return existing;
+
+	const promise = (async () => {
+		try {
+			const captureUrl = getCaptureUrl(videoUrl);
+			const blob = await captureVideoFrame(captureUrl);
+			const url = await uploadThumbnail(blob, postId);
+			setCachedThumbnail(videoUrl, url);
+			return url;
+		} finally {
+			inFlightCaptures.delete(videoUrl);
+		}
+	})();
+
+	inFlightCaptures.set(videoUrl, promise);
+	return promise;
 }
 
 /**
