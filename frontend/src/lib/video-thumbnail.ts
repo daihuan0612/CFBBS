@@ -243,7 +243,7 @@ export async function uploadThumbnail(blob: Blob, id: string | number): Promise<
 	formData.append('type', 'thumbnail');
 	formData.append('post_id', String(id));
 
-	const res = await fetch(`${API_BASE}/upload`, {
+	const res = await fetch(`${API_BASE}/thumbnail/upload`, {
 		method: 'POST',
 		headers: getSecurityHeaders('POST', null),
 		body: formData,

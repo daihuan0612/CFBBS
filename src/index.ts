@@ -717,8 +717,8 @@ export default {
 				const postId = formData.get('post_id') || 'general';
 				const type = formData.get('type') || 'post';
 
-				// 缩略图全部放行（不限角色）；头像仅限普通会员；帖子图片仅限管理员
-				if (type !== 'thumbnail' && user.role !== 'admin' && type !== 'avatar') {
+				// 缩略图和头像全部放行（不限角色）；帖子图片仅限管理员
+				if (type !== 'thumbnail' && type !== 'avatar' && user.role !== 'admin') {
 					return jsonResponse({ error: '仅管理员可上传文件，普通会员请使用图片直链' }, 403);
 				}
 
@@ -744,6 +744,34 @@ export default {
 			} catch (e) {
 				console.error('Upload error:', e);
 				return handleError(e); // 401/403 will be caught here if auth fails
+			}
+		}
+
+		// POST /api/thumbnail/upload — 专用缩略图上传（绕过 /api/upload 的 Cloudflare 安全限制）
+		if (url.pathname === '/api/thumbnail/upload' && method === 'POST') {
+			try {
+				const user = await authenticate(request);
+				const formData = await request.formData();
+				const file = formData.get('file');
+				const postId = formData.get('post_id') || 'general';
+				if (!file || !(file instanceof File)) {
+					return jsonResponse({ error: '未上传文件' }, 400);
+				}
+				if (!file.type.startsWith('image/')) {
+					return jsonResponse({ error: '仅允许上传图片' }, 400);
+				}
+				const MAX_SIZE = 2 * 1024 * 1024;
+				if (file.size > MAX_SIZE) {
+					return jsonResponse({ error: '文件大小超过限制（最大 2MB）' }, 400);
+				}
+				const imageKey = await uploadImage(env as unknown as S3Env, file, user.id.toString(), postId.toString(), 'thumbnail');
+				const r2PublicUrl = (env as any).R2_PUBLIC_BASE_URL as string | undefined;
+				const publicBase = (env as any).BUCKET ? (r2PublicUrl || `${getBaseUrl()}/r2`) : undefined;
+				const imageUrl = getPublicUrl(env as unknown as S3Env, imageKey, publicBase);
+				return jsonResponse({ success: true, url: imageUrl });
+			} catch (e) {
+				console.error('Thumbnail upload error:', e);
+				return handleError(e);
 			}
 		}
 
