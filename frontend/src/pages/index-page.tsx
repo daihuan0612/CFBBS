@@ -51,6 +51,7 @@ export function IndexPage() {
 	const [uploadProgress, setUploadProgress] = React.useState<number | null>(null);
 	const [uploadError, setUploadError] = React.useState('');
 	const [mediaCovers, setMediaCovers] = React.useState<Record<string, string>>({});
+	const [mediaVideoUrls, setMediaVideoUrls] = React.useState<Record<string, string>>({});
 
 	// 编辑器增强: 视频/网盘对话框
 	const [videoDialogOpen, setVideoDialogOpen] = React.useState(false);
@@ -471,6 +472,7 @@ export function IndexPage() {
 		if (ids.size === 0) return;
 		batchGetMedia(Array.from(ids)).then(() => {
 			const newCovers: Record<string, string> = {};
+			const newVideoUrls: Record<string, string> = {};
 			for (const [postId, mediaIds] of Object.entries(postMediaIds)) {
 				for (const id of mediaIds) {
 					const media = getCachedMedia(id);
@@ -479,13 +481,20 @@ export function IndexPage() {
 						newCovers[postId] = media.url;
 						break;
 					}
-					if (media.media_type === 'video' && media.thumbnail) {
-						newCovers[postId] = media.thumbnail;
-						break;
+					if (media.media_type === 'video') {
+						// 记录视频 URL，供截帧回退使用
+						if (!newVideoUrls[postId]) {
+							newVideoUrls[postId] = media.url;
+						}
+						if (media.thumbnail) {
+							newCovers[postId] = media.thumbnail;
+							break;
+						}
 					}
 				}
 			}
 			setMediaCovers(newCovers);
+			setMediaVideoUrls(newVideoUrls);
 		});
 	}, [posts]);
 
@@ -1086,17 +1095,15 @@ export function IndexPage() {
 					) : (
 						posts.map((p) => {
 							const coverUrl = getCoverImageUrl(p.content || '') || mediaCovers[p.id] || p.thumbnail || '';
-							// 没有图片时检测视频，截帧作为缩略图
+							// 提取视频 URL，供截帧缩略图回退使用
 							let videoUrl: string | null = null;
-							if (!coverUrl) {
-								const raw = getFirstVideoUrl(p.content || '');
-								if (raw) {
-									let url = raw;
-									if (!/^https?:\/\//i.test(url) && !url.startsWith('/') && !url.startsWith('data:')) {
-										url = `/r2/${url.replace(/^\/+/, '')}`;
-									}
-									videoUrl = resolveR2Url(url, config?.r2_public_url);
+							const rawVideo = getFirstVideoUrl(p.content || '') || mediaVideoUrls[p.id];
+							if (rawVideo) {
+								let url = rawVideo;
+								if (!/^https?:\/\//i.test(url) && !url.startsWith('/') && !url.startsWith('data:')) {
+									url = `/r2/${url.replace(/^\/+/, '')}`;
 								}
+								videoUrl = resolveR2Url(url, config?.r2_public_url);
 							}
 							const isAdmin = user?.role === 'admin';
 							const menuOpen = adminMenuPostId === p.id;

@@ -284,7 +284,7 @@ export default {
 			const headers = new Headers();
 			object.writeHttpMetadata(headers);
 			if (object.httpEtag) headers.set('etag', object.httpEtag);
-			headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+			headers.set('Cache-Control', 'public, max-age=31536000');
 			headers.set('CDN-Cache-Control', 'public, max-age=31536000');
 			headers.set('Access-Control-Allow-Origin', getCorsOrigin());
 			return new Response(method === 'HEAD' ? null : object.body, { headers });
@@ -839,7 +839,7 @@ export default {
 					duration: (row as any).duration,
 					thumbnail: (row as any).thumbnail,
 					status: (row as any).status,
-				}, 200, 'public, max-age=86400, immutable');
+				}, 200, 'public, max-age=86400');
 			} catch (e) {
 				console.error('Media get error:', e);
 				return handleError(e);
@@ -2925,7 +2925,7 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 				}
 				// JS/CSS/fonts with content hash: cache forever, no revalidation
 				if (/\.(js|css|woff2?|ttf|eot|svg|png|jpg|jpeg|webp|avif|ico)$/i.test(mapped)) {
-					resp.headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+					resp.headers.set('Cache-Control', 'public, max-age=31536000');
 					resp.headers.set('CDN-Cache-Control', 'public, max-age=31536000');
 				}
 				return resp;
