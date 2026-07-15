@@ -16,6 +16,7 @@ export function AdminPage() {
 	const user = React.useMemo(() => getUser(), [token]);
 	const isAdmin = user?.role === 'admin';
 	const [error, setError] = React.useState('');
+	const [successMsg, setSuccessMsg] = React.useState('');
 	const [savingSettings, setSavingSettings] = React.useState(false);
 	const [categorySaving, setCategorySaving] = React.useState(false);
 	const [userSaving, setUserSaving] = React.useState(false);
@@ -189,6 +190,8 @@ export function AdminPage() {
 		setEditUsername(u.username || '');
 		setEditAvatarUrl(u.avatar_url || '');
 		setEditPassword('');
+		setError('');
+		setSuccessMsg('');
 		setEditOpen(true);
 	}
 
@@ -196,12 +199,15 @@ export function AdminPage() {
 		if (!editUserId) return;
 		setUserSaving(true);
 		setError('');
+		setSuccessMsg('');
 		try {
 			await apiFetch(`/admin/users/${editUserId}/update`, {
 				method: 'POST', headers: getSecurityHeaders('POST'),
 				body: JSON.stringify({ email: editEmail || undefined, username: editUsername || undefined, avatar_url: editAvatarUrl, password: editPassword || undefined })
 			});
 			setEditOpen(false);
+			const pwChanged = editPassword ? '，密码已更新' : '';
+			setSuccessMsg(`用户信息已保存${pwChanged}`);
 			await refresh();
 		} catch (e: any) { setError(String(e?.message || e)); } finally { setUserSaving(false); }
 	}
@@ -329,6 +335,7 @@ export function AdminPage() {
 				) : (
 					<>
 						{error ? <div className="rounded-md border border-destructive/50 bg-destructive/5 p-3 text-sm text-destructive">{error}</div> : null}
+						{successMsg ? <div className="rounded-md border border-emerald-500/50 bg-emerald-500/5 p-3 text-sm text-emerald-700 dark:text-emerald-300">{successMsg}</div> : null}
 
 						{/* 统计 */}
 						<Card>
@@ -629,7 +636,7 @@ export function AdminPage() {
 													<div className="grid gap-2"><Label htmlFor="edit-username">昵称</Label><Input id="edit-username" value={editUsername} onChange={(e) => setEditUsername(e.target.value)} maxLength={20} /></div>
 													<div className="grid gap-2"><Label htmlFor="edit-email">登录用户名</Label><Input id="edit-email" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} /></div>
 									<div className="grid gap-2"><Label htmlFor="edit-avatar">头像 URL</Label><Input id="edit-avatar" value={editAvatarUrl} onChange={(e) => setEditAvatarUrl(e.target.value)} /></div>
-									<div className="grid gap-2"><Label htmlFor="edit-password">新密码 (留空不变)</Label><Input id="edit-password" value={editPassword} onChange={(e) => setEditPassword(e.target.value)} /></div>
+									<div className="grid gap-2"><Label htmlFor="edit-password">新密码</Label><Input id="edit-password" type="password" placeholder="8-16位，留空不修改" autoComplete="new-password" value={editPassword} onChange={(e) => setEditPassword(e.target.value)} /></div>
 								</div>
 								<DialogFooter><Button variant="outline" onClick={() => setEditOpen(false)}>取消</Button><Button onClick={saveEdit} disabled={userSaving}>{userSaving ? '保存中...' : '保存'}</Button></DialogFooter>
 							</DialogContent>
