@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { uploadMedia, generateVideoThumbnail } from '@/lib/media';
-import { renderMarkdownToHtml } from '@/lib/markdown';
+import { renderMarkdownToHtml, resolveMediaUrls } from '@/lib/markdown';
 import 'remixicon/fonts/remixicon.css';
 
 interface MarkdownEditorProps {
@@ -286,6 +286,14 @@ export function MarkdownEditor({ content, setContent, placeholder: ph, r2PublicU
 				changes: { from: 0, to: current.length, insert: content }
 			});
 		}
+	}, [content]);
+
+	// 编辑器预览中解析 !MEDIA 标记
+	useEffect(() => {
+		const el = previewRef.current;
+		if (!el) return;
+		const timer = setTimeout(() => resolveMediaUrls(el), 300);
+		return () => clearTimeout(timer);
 	}, [content]);
 
 	// --- Dialog handlers ---
