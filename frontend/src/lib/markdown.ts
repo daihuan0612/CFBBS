@@ -1,3 +1,4 @@
+import { API_BASE } from '@/lib/api';
 import { marked } from 'marked';
 import createDOMPurify from 'dompurify';
 import { highlightElement } from '@speed-highlight/core';
@@ -148,7 +149,7 @@ async function batchGetMedia(ids: string[]): Promise<void> {
 	// 逐个查询（私密论坛用户少，单次查询即可）
 	for (const id of uncached) {
 		try {
-			const res = await fetch(`/api/media/get?id=${encodeURIComponent(id)}`);
+			const res = await fetch(`${API_BASE}/media/get?id=${encodeURIComponent(id)}`);
 			if (!res.ok) continue;
 			const data = await res.json();
 			if (data.success) {
