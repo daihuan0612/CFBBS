@@ -703,7 +703,6 @@ export function IndexPage() {
 					src={coverUrl}
 					alt=""
 					className="hidden sm:block h-20 w-28 shrink-0 rounded-md object-cover object-top"
-					loading="lazy"
 					referrerPolicy="no-referrer"
 					onError={() => setFailed(true)}
 				/>

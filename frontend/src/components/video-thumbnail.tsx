@@ -51,7 +51,6 @@ export function VideoThumbnail({
 				src={url}
 				alt=""
 				className={className || 'hidden sm:block h-20 w-28 shrink-0 rounded-md object-cover object-center'}
-				loading="lazy"
 				onError={() => {
 					setImgFailed(true);
 					// 如果是缓存命中的 URL 失效了，清除缓存避免下次复用
