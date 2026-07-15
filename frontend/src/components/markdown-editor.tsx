@@ -512,7 +512,7 @@ export function MarkdownEditor({ content, setContent, placeholder: ph, r2PublicU
 				<label className="relative cursor-pointer">
 					<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="上传文件"
 						disabled={uploadProgress !== null} asChild>
-						<span><i className="ri-image-add-line text-sm leading-none" /></span>
+						<span><i className="ri-upload-line text-sm leading-none" /></span>
 					</Button>
 					<input type="file"
 						accept=".jpg,.jpeg,.png,.gif,.webp,.bmp,.mp4,.webm,.mov,.avi,.zip,.rar,.7z,.tar,.gz,.tgz"
@@ -523,7 +523,7 @@ export function MarkdownEditor({ content, setContent, placeholder: ph, r2PublicU
 				<label className="relative cursor-pointer">
 					<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="上传文件"
 						disabled={uploadProgress !== null} asChild>
-						<span><i className="ri-image-add-line text-sm leading-none" /></span>
+						<span><i className="ri-upload-line text-sm leading-none" /></span>
 					</Button>
 					<input type="file"
 						accept=".jpg,.jpeg,.png,.gif,.webp,.bmp,.mp4,.webm,.mov,.avi,.zip,.rar,.7z,.tar,.gz,.tgz"
