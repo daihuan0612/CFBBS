@@ -1,0 +1,112 @@
+/**
+ * For more details on how to configure Wrangler, refer to:
+ * https://developers.cloudflare.com/workers/wrangler/configuration/
+ */
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "cfbbs",
+	"main": "src/index.ts",
+	"compatibility_date": "2025-09-27",
+	"compatibility_flags": [
+		"global_fetch_strictly_public"
+	],
+	"observability": {
+		"enabled": true
+	},
+	"d1_databases": [
+		{
+			"binding": "cforum_db",
+			"database_name": "cforum-db",
+			"database_id": "b86e862b-6fe1-4593-ab59-acbdbdbcbd49",
+			"remote": true,
+			"migrations_dir": "migrations"
+		}
+	],
+	/**
+	 * R2 Object Storage (for image uploads)
+	 * 如果账号未开通 R2，注释掉下面配置即可正常部署
+	 * 开通后取消注释并运行: wrangler r2 bucket create BUCKET
+	 * https://developers.cloudflare.com/r2/api/workers/workers-api-reference/
+	 */
+	"r2_buckets": [
+		{
+			"binding": "BUCKET",
+			"bucket_name": "cforum-images"
+		}
+	],
+	/**
+	 * Enable default *.workers.dev domain
+	 */
+	"workers_dev": true,
+	/**
+	 * Custom domain routes (only needed if binding custom domains)
+	 * https://developers.cloudflare.com/workers/configuration/routing/
+	 *
+	 * Example for custom domain binding:
+	 * "routes": [
+	 *   {
+	 *     "pattern": "api.example.com/*",
+	 *     "zone_name": "example.com"
+	 *   }
+	 * ]
+	 * Add your routes here after binding custom domains in Cloudflare Dashboard
+	 */
+	/**
+	 * Smart Placement
+	 * https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement
+	 */
+	// "placement": {  "mode": "smart" }
+	/**
+	 * Bindings
+	 * Bindings allow your Worker to interact with resources on the Cloudflare Developer Platform, including
+	 * databases, object storage, AI inference, real-time communication and more.
+	 * https://developers.cloudflare.com/workers/runtime-apis/bindings/
+	 */
+	/**
+	 * Environment Variables
+	 * https://developers.cloudflare.com/workers/wrangler/configuration/#environment-variables
+	 * Note: Use secrets to store sensitive data.
+	 * https://developers.cloudflare.com/workers/configuration/secrets/
+	 *
+	 * IMPORTANT: Set JWT_SECRET as a secret (NOT here):
+	 * wrangler secret put JWT_SECRET
+	 * Generate a random value with: head -c 32 /dev/urandom | base64
+	 *
+	 * 管理员账号通过环境变量配置（部署后首次初始化生效）：
+	 *   ADMIN_EMAIL     - 管理员邮箱（必填）
+	 *   ADMIN_PASSWORD  - 管理员密码（必填）
+	 *   ADMIN_NICKNAME  - 管理员昵称（可选，默认 Admin）
+	 *
+	 * 设置方式：
+	 *   wrangler secret put JWT_SECRET         # 必需
+	 *   wrangler secret put ADMIN_EMAIL        # 可选，不设置则不创建默认管理员
+	 *   wrangler secret put ADMIN_PASSWORD     # 可选，与 ADMIN_EMAIL 配对
+	 *   wrangler secret put ADMIN_NICKNAME     # 可选
+	 *
+	 * 部署后首次部署会检测 ADMIN_EMAIL/ADMIN_PASSWORD 是否存在，
+	 * 存在则自动创建对应管理员账号；不存在则跳过，需要自行注册。
+	 *
+	 * SMTP 已移除, 密码重置改为管理员生成24h临时密码
+	 */
+	// "vars": {  "MY_VARIABLE": "production_value" }
+	/**
+	 * R2_PUBLIC_BASE_URL
+	 * 自定义 R2 图片 CDN 域名，解决 CF 分配域在中国大陆无法访问的问题。
+	 * 设置后图片 URL 将使用此域名（如 https://img.yourdomain.com/r2/...）。
+	 * 可通过 wrangler secret put 或 dashboard 设置：
+	 *   wrangler secret put R2_PUBLIC_BASE_URL https://your-custom-domain.com
+	 *
+	 * 或者直接在 wrangler.jsonc 的 vars 中设置（明文，适合非敏感场景）：
+	 *   "R2_PUBLIC_BASE_URL": "https://img.yourdomain.com"
+	 */
+	/**
+	 * Service Bindings (communicate between multiple Workers)
+	 * https://developers.cloudflare.com/workers/wrangler/configuration/#service-bindings
+	 */
+	"vars": {
+		"IMGBED_DOMAIN": "https://yun.siyou.qzz.io",
+		"IMGBED_AUTH_CODE": "123456"
+	}
+	// "services": [  {   "binding": "MY_SERVICE",   "service": "my-service"  } ]
+
+}
