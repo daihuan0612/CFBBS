@@ -66,6 +66,52 @@ function extractImageUrls(content: string): string[] {
 	return urls;
 }
 
+/**
+ * 删除帖子关联的媒体资源（数据库记录 + 尝试删图床文件）
+ * - 查询 post_media 获取媒体 ID
+ * - 从 media_files 获取 URL
+ * - 尝试调用图床 delete API 删除文件（静默失败）
+ * - 删除 post_media 和 media_files 记录
+ */
+async function deletePostMedia(env: any, ctx: any, postId: string | number) {
+	try {
+		const mediaRows = await env.cforum_db.prepare(
+			'SELECT pm.media_id, mf.url FROM post_media pm LEFT JOIN media_files mf ON pm.media_id = mf.id WHERE pm.post_id = ?'
+		).bind(String(postId)).all();
+
+		if (!mediaRows.results?.length) return;
+
+		// 异步删除图床文件
+		const imgbedDomain = (env as any).IMGBED_DOMAIN || '';
+		ctx.waitUntil((async () => {
+			for (const row of mediaRows.results as any[]) {
+				const url: string = row.url || '';
+				if (!url || !imgbedDomain) continue;
+				// 从完整 URL 中提取文件路径（如 https://yun.siyou.qzz.io/file/tucao/xxx.webp → /tucao/xxx.webp）
+				try {
+					const parsed = new URL(url);
+					if (parsed.origin === imgbedDomain.replace(/\/+$/, '') && parsed.pathname.startsWith('/file/')) {
+						const filePath = parsed.pathname.replace(/^\/file\//, '');
+						// 尝试删图床（需要 API Token 或有管理 session，失败静默）
+						fetch(`${imgbedDomain}/api/manage/delete/${encodeURIComponent(filePath)}`, {
+							method: 'DELETE',
+						}).catch(() => {});
+					}
+				} catch {}
+			}
+		})());
+
+		// 删除关联记录
+		const mediaIds = mediaRows.results.map((r: any) => r.media_id);
+		await env.cforum_db.prepare('DELETE FROM post_media WHERE post_id = ?').bind(String(postId)).run();
+		for (const id of mediaIds) {
+			await env.cforum_db.prepare('DELETE FROM media_files WHERE id = ?').bind(id).run();
+		}
+	} catch (e) {
+		console.error('Failed to delete post media:', e);
+	}
+}
+
 // Utility to hash password
 async function hashPassword(password: string): Promise<string> {
 	const myText = new TextEncoder().encode(password);
@@ -1812,7 +1858,7 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 				const userPayload = await authenticate(request);
 				if (userPayload.role !== 'admin') return jsonResponse({ error: 'Unauthorized' }, 403);
 
-				// Delete images in post
+				// Delete images in post (旧格式 ![]() 图片)
 				const post = await env.cforum_db.prepare('SELECT content, author_id FROM posts WHERE id = ?').bind(id).first();
 				if (post) {
 					const imageUrls = extractImageUrls(post.content as string);
@@ -1820,6 +1866,9 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 						ctx.waitUntil(Promise.all(imageUrls.map(url => deleteImage(env as unknown as S3Env, url, post.author_id as number))).catch(err => console.error('Failed to delete post images', err)));
 					}
 				}
+
+				// 删除 !MEDIA 资源（图床文件 + 数据库记录）
+				await deletePostMedia(env, ctx, id!);
 
 				await env.cforum_db.prepare('DELETE FROM likes WHERE post_id = ?').bind(id).run();
 				await env.cforum_db.prepare('DELETE FROM comments WHERE post_id = ?').bind(id).run();
@@ -2333,11 +2382,14 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 					return jsonResponse({ error: 'Unauthorized' }, 403);
 				}
 
-				// Delete images in post
+				// Delete images in post (旧格式 ![]() 图片)
 				const imageUrls = extractImageUrls(post.content as string);
 				if (imageUrls.length > 0) {
 					ctx.waitUntil(Promise.all(imageUrls.map(url => deleteImage(env as unknown as S3Env, url, userPayload.id))).catch(err => console.error('Failed to delete post images', err)));
 				}
+
+				// 删除 !MEDIA 资源（图床文件 + 数据库记录）
+				await deletePostMedia(env, ctx, id);
 
 				await env.cforum_db.prepare('DELETE FROM likes WHERE post_id = ?').bind(id).run();
 				await env.cforum_db.prepare('DELETE FROM comments WHERE post_id = ?').bind(id).run();

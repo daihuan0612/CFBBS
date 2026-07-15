@@ -11,6 +11,32 @@ export type MediaUploadResult = {
 };
 
 /**
+ * 根据文件扩展名推断 MIME 类型（浏览器不报 MIME 时兜底）
+ */
+function inferMimeFromExt(filename: string): string {
+	const ext = filename.split('.').pop()?.toLowerCase() || '';
+	const map: Record<string, string> = {
+		zip: 'application/zip',
+		rar: 'application/x-rar-compressed',
+		'7z': 'application/x-7z-compressed',
+		tar: 'application/x-tar',
+		gz: 'application/gzip',
+		tgz: 'application/gzip',
+		mp4: 'video/mp4',
+		webm: 'video/webm',
+		mov: 'video/quicktime',
+		avi: 'video/x-msvideo',
+		jpg: 'image/jpeg',
+		jpeg: 'image/jpeg',
+		png: 'image/png',
+		gif: 'image/gif',
+		webp: 'image/webp',
+		bmp: 'image/bmp',
+	};
+	return map[ext] || 'application/octet-stream';
+}
+
+/**
  * 上传文件到 ImgBed，再登记到论坛 media_files 表
  * @returns media record including media_id
  */
@@ -23,13 +49,16 @@ export async function uploadMedia(
 	// Step 1: Upload directly to ImgBed (XHR 支持进度回调)
 	const fullUrl = await uploadToImgBed(file, imgbedDomain, imgbedAuthCode, onProgress);
 
+	// 浏览器可能不报 MIME（如压缩包），根据扩展名推断
+	const mime = file.type || inferMimeFromExt(file.name);
+
 	// Step 2: Register with forum Worker
 	const registerRes = await fetch(`${API_BASE}/media/upload`, {
 		method: 'POST',
 		headers: getSecurityHeaders('POST'),
 		body: JSON.stringify({
 			url: fullUrl,
-			mime: file.type,
+			mime,
 			size: file.size,
 		}),
 	});
