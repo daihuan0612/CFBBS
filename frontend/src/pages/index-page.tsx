@@ -1189,7 +1189,7 @@ export function IndexPage() {
 													</span>
 												</div>
 											</div>
-											<PostThumbnail src={p.thumbnail || coverUrl} />
+											<PostThumbnail src={p.thumbnail || coverUrl} videoUrl={videoUrl} postId={p.id} />
 										</div>
 									</CardContent>
 								</Card>
