@@ -711,8 +711,15 @@ export default {
 				// MIME 白名单校验
 				const allowedMimes = [
 					'image/', 'video/', 'audio/',
+					'text/plain', 'text/html', 'text/markdown',
 					'application/pdf', 'application/zip', 'application/x-zip-compressed',
 					'application/x-rar-compressed', 'application/x-7z-compressed',
+					'application/msword',
+					'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+					'application/vnd.ms-excel',
+					'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+					'application/vnd.ms-powerpoint',
+					'application/vnd.openxmlformats-officedocument.presentationml.presentation',
 				];
 				const isAllowed = allowedMimes.some(prefix => body.mime.startsWith(prefix));
 				if (!isAllowed) {

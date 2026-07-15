@@ -97,8 +97,9 @@ function uploadToImgBed(
  */
 export async function generateVideoThumbnail(mediaId: string, videoUrl: string, postId?: number): Promise<void> {
 	try {
-		const { captureVideoFrame, uploadThumbnail } = await import('@/lib/video-thumbnail');
-		const blob = await captureVideoFrame(videoUrl);
+		const { captureVideoFrame, uploadThumbnail, getCaptureUrl } = await import('@/lib/video-thumbnail');
+		const captureUrl = getCaptureUrl(videoUrl);
+		const blob = await captureVideoFrame(captureUrl);
 		const thumbUrl = await uploadThumbnail(blob, mediaId);
 		// 更新 media_files.thumbnail
 		await fetch(`${API_BASE}/media/thumbnail`, {
