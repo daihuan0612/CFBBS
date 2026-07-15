@@ -515,7 +515,7 @@ export function MarkdownEditor({ content, setContent, placeholder: ph, r2PublicU
 						className="absolute inset-0 opacity-0 cursor-pointer"
 						onChange={handleImageUpload} disabled={uploadProgress !== null} />
 				</label>
-			) : userRole === 'admin' ? (
+			) : userRole ? (
 				<label className="relative cursor-pointer">
 					<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="上传文件"
 						disabled={uploadProgress !== null} asChild>
