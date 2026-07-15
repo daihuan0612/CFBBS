@@ -1505,7 +1505,7 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 						const identicon = await generateIdenticon(String(id));
 						await env.cforum_db.prepare('UPDATE users SET avatar_url = ? WHERE id = ?').bind(identicon, id).run();
 					} else {
-						if (avatar_url.length > 500) return jsonResponse({ error: '头像链接过长（最多 500 个字符）' }, 400);
+						if (avatar_url.length > 2000) return jsonResponse({ error: '头像链接过长（最多 2000 个字符）' }, 400);
 						if (!/^https?:\/\//i.test(avatar_url) && !avatar_url.startsWith('data:image/svg+xml')) return jsonResponse({ error: '头像链接格式无效' }, 400);
 						await env.cforum_db.prepare('UPDATE users SET avatar_url = ? WHERE id = ?').bind(avatar_url, id).run();
 					}
