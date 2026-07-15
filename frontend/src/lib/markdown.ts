@@ -209,8 +209,13 @@ export async function resolveMediaUrls(root: HTMLElement | null) {
 			}
 			default: {
 				// file / unknown → download link
-				const filename = media.url.split('/').pop() || mediaId;
-				el.outerHTML = `<a href="${media.url}" target="_blank" rel="noopener noreferrer" style="display:inline-block;margin:0.5em 0">📎 ${filename}</a>`;
+				const rawName = media.url.split('/').pop() || mediaId;
+				// 去掉图床加的时间戳前缀（如 1784086706996_逍遥小散仙1-28.rar → 逍遥小散仙1-28.rar）
+				const filename = rawName.replace(/^\d+_/, '');
+				el.outerHTML = `<a href="${media.url}" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:6px;margin:0.5em 0;text-decoration:none;color:var(--link-color,#2563eb);font-size:14px">
+					<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+					${filename}
+				</a>`;
 			}
 		}
 	});
