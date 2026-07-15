@@ -104,8 +104,11 @@ async function deletePostMedia(env: any, ctx: any, postId: string | number) {
 		// 删除关联记录
 		const mediaIds = mediaRows.results.map((r: any) => r.media_id);
 		await env.cforum_db.prepare('DELETE FROM post_media WHERE post_id = ?').bind(String(postId)).run();
-		for (const id of mediaIds) {
-			await env.cforum_db.prepare('DELETE FROM media_files WHERE id = ?').bind(id).run();
+		if (mediaIds.length > 0) {
+			const batch = mediaIds.map((id: string) =>
+				env.cforum_db.prepare('DELETE FROM media_files WHERE id = ?').bind(id)
+			);
+			await env.cforum_db.batch(batch);
 		}
 	} catch (e) {
 		console.error('Failed to delete post media:', e);
@@ -113,19 +116,24 @@ async function deletePostMedia(env: any, ctx: any, postId: string | number) {
 }
 
 // Utility to hash password
-async function hashPassword(password: string): Promise<string> {
-	const myText = new TextEncoder().encode(password);
-	const myDigest = await crypto.subtle.digest(
-		{
-			name: 'SHA-256',
-		},
-		myText
-	);
+function getPepper(): string {
+	return (globalThis as any).PASSWORD_PEPPER || (globalThis as any).webhook_secret || (globalThis as any).JWT_SECRET || '';
+}
+
+async function hashPassword(password: string, usePepper = true): Promise<string> {
+	const input = usePepper && getPepper() ? password + ':' + getPepper() : password;
+	const myText = new TextEncoder().encode(input);
+	const myDigest = await crypto.subtle.digest({ name: 'SHA-256' }, myText);
 	const hashArray = Array.from(new Uint8Array(myDigest));
-	const hashHex = hashArray
-		.map((b) => b.toString(16).padStart(2, '0'))
-		.join('');
-	return hashHex;
+	return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function verifyPassword(input: string, storedHash: string): Promise<boolean> {
+	// 先尝试 pepper hash
+	if (await hashPassword(input, true) === storedHash) return true;
+	// 兼容老密码（无 pepper）
+	if (await hashPassword(input, false) === storedHash) return true;
+	return false;
 }
 
 function generateToken(): string {
@@ -480,11 +488,7 @@ export default {
 			const adminPassword = env.ADMIN_PASSWORD || '';
 			const adminNickname = env.ADMIN_NICKNAME || '';
 			if (!adminEmail || !adminPassword) return;
-			const encoder = new TextEncoder();
-			const data = encoder.encode(adminPassword);
-			const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-			const hashArray = Array.from(new Uint8Array(hashBuffer));
-			const adminHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+			const adminHash = await hashPassword(adminPassword);
 			await env.cforum_db.prepare(
 				`INSERT INTO users (email, username, password, role, verified, nickname) VALUES (?, ?, ?, 'admin', 1, ?)
 				 ON CONFLICT(email) DO UPDATE SET password = excluded.password`
@@ -675,6 +679,9 @@ export default {
 				if (watermark_enabled !== undefined) batch.push(stmt.bind('watermark_enabled', watermark_enabled ? '1' : '0'));
 
 				if (batch.length > 0) await env.cforum_db.batch(batch);
+
+				// 设置变更后立即失效 config 缓存
+				invalidateCache('config');
 
 				return jsonResponse({ success: true });
 			} catch (e) {
@@ -915,8 +922,7 @@ export default {
 					return jsonResponse({ error: '用户名或密码错误' }, 401);
 				}
 
-				const passwordHash = await hashPassword(password);
-				if (user.password !== passwordHash) {
+				if (!await verifyPassword(password, user.password)) {
 					return jsonResponse({ error: '用户名或密码错误' }, 401);
 				}
 
@@ -1085,8 +1091,7 @@ export default {
 				if (!user) return jsonResponse({ error: '用户不存在' }, 404);
 
 				// Verify Password (Double check for sensitive delete op)
-				const passwordHash = await hashPassword(password);
-				if (user.password !== passwordHash) {
+				if (!await verifyPassword(password, user.password)) {
 					return jsonResponse({ error: '密码错误' }, 401);
 				}
 
@@ -1126,26 +1131,22 @@ export default {
 					 ctx.waitUntil(Promise.all(deletionPromises).catch(err => console.error('Failed to delete user images', err)));
 				}
 
-				// 2. Delete likes/comments ON user's posts (Cascade manually)
-				await env.cforum_db.prepare('DELETE FROM likes WHERE post_id IN (SELECT id FROM posts WHERE author_id = ?)').bind(user_id).run();
-				await env.cforum_db.prepare('DELETE FROM comments WHERE post_id IN (SELECT id FROM posts WHERE author_id = ?)').bind(user_id).run();
-
-				// 3. Delete user's activity
-				await env.cforum_db.prepare('DELETE FROM likes WHERE user_id = ?').bind(user_id).run();
-				await env.cforum_db.prepare('DELETE FROM comments WHERE author_id = ?').bind(user_id).run();
-
-				// 4. Clean up all other FK references before deleting the user
-				await env.cforum_db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(user_id).run();
-				await env.cforum_db.prepare('DELETE FROM notifications WHERE user_id = ? OR actor_id = ?').bind(user_id, user_id).run();
-				await env.cforum_db.prepare('DELETE FROM user_watermarks WHERE user_id = ?').bind(user_id).run();
-				await env.cforum_db.prepare('DELETE FROM password_history WHERE user_id = ?').bind(user_id).run();
-				await env.cforum_db.prepare('DELETE FROM temp_passwords WHERE user_id = ? OR created_by = ?').bind(user_id, user_id).run();
-				await env.cforum_db.prepare('DELETE FROM invitation_codes WHERE created_by = ? OR used_by = ?').bind(user_id, user_id).run();
-				await env.cforum_db.prepare('DELETE FROM encrypted_attachments WHERE user_id = ?').bind(user_id).run();
-
-				// 5. Delete posts and user
-				await env.cforum_db.prepare('DELETE FROM posts WHERE author_id = ?').bind(user_id).run();
-				await env.cforum_db.prepare('DELETE FROM users WHERE id = ?').bind(user_id).run();
+				// 2. Delete all data in a single batch
+				await env.cforum_db.batch([
+					env.cforum_db.prepare('DELETE FROM likes WHERE post_id IN (SELECT id FROM posts WHERE author_id = ?)').bind(user_id),
+					env.cforum_db.prepare('DELETE FROM comments WHERE post_id IN (SELECT id FROM posts WHERE author_id = ?)').bind(user_id),
+					env.cforum_db.prepare('DELETE FROM likes WHERE user_id = ?').bind(user_id),
+					env.cforum_db.prepare('DELETE FROM comments WHERE author_id = ?').bind(user_id),
+					env.cforum_db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(user_id),
+					env.cforum_db.prepare('DELETE FROM notifications WHERE user_id = ? OR actor_id = ?').bind(user_id, user_id),
+					env.cforum_db.prepare('DELETE FROM user_watermarks WHERE user_id = ?').bind(user_id),
+					env.cforum_db.prepare('DELETE FROM password_history WHERE user_id = ?').bind(user_id),
+					env.cforum_db.prepare('DELETE FROM temp_passwords WHERE user_id = ? OR created_by = ?').bind(user_id, user_id),
+					env.cforum_db.prepare('DELETE FROM invitation_codes WHERE created_by = ? OR used_by = ?').bind(user_id, user_id),
+					env.cforum_db.prepare('DELETE FROM encrypted_attachments WHERE user_id = ?').bind(user_id),
+					env.cforum_db.prepare('DELETE FROM posts WHERE author_id = ?').bind(user_id),
+					env.cforum_db.prepare('DELETE FROM users WHERE id = ?').bind(user_id),
+				]);
 
 				await security.logAudit(userPayload.id, 'DELETE_ACCOUNT', 'user', String(user_id), {}, request);
 
@@ -1171,8 +1172,7 @@ export default {
 				if (!user) return jsonResponse({ error: '用户不存在' }, 404);
 
 				// 验证当前密码
-				const currentHash = await hashPassword(current_password);
-				if (user.password !== currentHash) {
+				if (!await verifyPassword(current_password, user.password)) {
 					return jsonResponse({ error: '当前密码错误' }, 401);
 				}
 
@@ -1180,8 +1180,7 @@ export default {
 				const lastUsed = await env.cforum_db.prepare(
 					"SELECT password_hash FROM password_history WHERE user_id = ? ORDER BY created_at DESC LIMIT 1"
 				).bind(user_id).first();
-				const newHash = await hashPassword(new_password);
-				if (lastUsed && lastUsed.password_hash === newHash) {
+				if (lastUsed && await verifyPassword(new_password, lastUsed.password_hash)) {
 					return jsonResponse({ error: '新密码不能与上次使用的密码相同' }, 400);
 				}
 
@@ -1191,6 +1190,7 @@ export default {
 				).bind(user_id, user.password, Date.now() / 1000).run();
 
 				// 更新密码
+				const newHash = await hashPassword(new_password);
 				await env.cforum_db.prepare('UPDATE users SET password = ? WHERE id = ?').bind(newHash, user_id).run();
 
 				await security.logAudit(user_id, 'CHANGE_PASSWORD', 'user', String(user_id), {}, request);
@@ -1806,29 +1806,25 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 					ctx.waitUntil(Promise.all(deletionPromises).catch(err => console.error('Failed to delete user images', err)));
 				}
 
-				// 1. Delete likes and comments ON the user's posts (to avoid orphans)
-				await env.cforum_db.prepare('DELETE FROM likes WHERE post_id IN (SELECT id FROM posts WHERE author_id = ?)').bind(id).run();
-				await env.cforum_db.prepare('DELETE FROM comments WHERE post_id IN (SELECT id FROM posts WHERE author_id = ?)').bind(id).run();
-
-				// 2. Delete the user's own activity (likes and comments they made)
-				await env.cforum_db.prepare('DELETE FROM likes WHERE user_id = ?').bind(id).run();
-				await env.cforum_db.prepare('DELETE FROM comments WHERE author_id = ?').bind(id).run();
-
-				// 3. Clean up all other FK references before deleting the user
-				await env.cforum_db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(id).run();
-				await env.cforum_db.prepare('DELETE FROM notifications WHERE user_id = ? OR actor_id = ?').bind(id, id).run();
-				await env.cforum_db.prepare('DELETE FROM user_watermarks WHERE user_id = ?').bind(id).run();
-				await env.cforum_db.prepare('DELETE FROM password_history WHERE user_id = ?').bind(id).run();
-				await env.cforum_db.prepare('DELETE FROM temp_passwords WHERE user_id = ? OR created_by = ?').bind(id, id).run();
-				await env.cforum_db.prepare('DELETE FROM invitation_codes WHERE created_by = ? OR used_by = ?').bind(id, id).run();
-				await env.cforum_db.prepare('DELETE FROM encrypted_attachments WHERE user_id = ?').bind(id).run();
-
-				// 4. Delete the user's posts
-				await env.cforum_db.prepare('DELETE FROM posts WHERE author_id = ?').bind(id).run();
-
-				// 5. Finally, delete the user
+				// Pre-fetch user info for notifications (before batch deletes the user)
 				const userToDelete = await env.cforum_db.prepare('SELECT email, username FROM users WHERE id = ?').bind(id).first();
-				await env.cforum_db.prepare('DELETE FROM users WHERE id = ?').bind(id).run();
+
+				// Batch delete all user data
+				await env.cforum_db.batch([
+					env.cforum_db.prepare('DELETE FROM likes WHERE post_id IN (SELECT id FROM posts WHERE author_id = ?)').bind(id),
+					env.cforum_db.prepare('DELETE FROM comments WHERE post_id IN (SELECT id FROM posts WHERE author_id = ?)').bind(id),
+					env.cforum_db.prepare('DELETE FROM likes WHERE user_id = ?').bind(id),
+					env.cforum_db.prepare('DELETE FROM comments WHERE author_id = ?').bind(id),
+					env.cforum_db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(id),
+					env.cforum_db.prepare('DELETE FROM notifications WHERE user_id = ? OR actor_id = ?').bind(id, id),
+					env.cforum_db.prepare('DELETE FROM user_watermarks WHERE user_id = ?').bind(id),
+					env.cforum_db.prepare('DELETE FROM password_history WHERE user_id = ?').bind(id),
+					env.cforum_db.prepare('DELETE FROM temp_passwords WHERE user_id = ? OR created_by = ?').bind(id, id),
+					env.cforum_db.prepare('DELETE FROM invitation_codes WHERE created_by = ? OR used_by = ?').bind(id, id),
+					env.cforum_db.prepare('DELETE FROM encrypted_attachments WHERE user_id = ?').bind(id),
+					env.cforum_db.prepare('DELETE FROM posts WHERE author_id = ?').bind(id),
+					env.cforum_db.prepare('DELETE FROM users WHERE id = ?').bind(id),
+				]);
 
 				await security.logAudit(userPayload.id, 'ADMIN_DELETE_USER', 'user', String(id), {}, request);
 
@@ -1888,8 +1884,15 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 				const userPayload = await authenticate(request);
 				if (userPayload.role !== 'admin') return jsonResponse({ error: 'Unauthorized' }, 403);
 
-				// Delete the comment AND its children (orphans prevention)
-				await env.cforum_db.prepare('DELETE FROM comments WHERE parent_id = ?').bind(id).run();
+				// Delete the comment AND its children (orphans prevention) — use recursive CTE for deep nesting
+				await env.cforum_db.prepare(
+					`WITH RECURSIVE descendants(id) AS (
+						SELECT id FROM comments WHERE parent_id = ?
+						UNION ALL
+						SELECT c.id FROM comments c JOIN descendants d ON c.parent_id = d.id
+					)
+					DELETE FROM comments WHERE id IN (SELECT id FROM descendants)`
+				).bind(id).run();
 				await env.cforum_db.prepare('DELETE FROM comments WHERE id = ?').bind(id).run();
 
 				await security.logAudit(userPayload.id, 'ADMIN_DELETE_COMMENT', 'comment', String(id), {}, request);
@@ -2151,7 +2154,7 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 		if (url.pathname === '/api/users' && method === 'GET') {
 			try {
 				const { results } = await env.cforum_db.prepare(
-					'SELECT id, email, username, created_at FROM users'
+					'SELECT id, username, created_at FROM users'
 				).all();
 				return jsonResponse(results, 200, 'no-store, private');
 			} catch (e) {
@@ -2187,12 +2190,15 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
                         users.avatar_url as author_avatar,
                         users.role as author_role,
                         categories.name as category_name,
-                        (SELECT COUNT(*) FROM likes WHERE likes.post_id = posts.id) as like_count,
-                        (SELECT COUNT(*) FROM comments WHERE comments.post_id = posts.id) as comment_count,
-                        (SELECT COALESCE(mf.thumbnail, mf.url) FROM post_media pm JOIN media_files mf ON pm.media_id = mf.id WHERE pm.post_id = posts.id AND mf.media_type IN ('image','video') LIMIT 1) as thumbnail
+                        COALESCE(lc.cnt, 0) as like_count,
+                        COALESCE(cc.cnt, 0) as comment_count,
+                        pmt.thumb as thumbnail
                      FROM posts
                      JOIN users ON posts.author_id = users.id
-                     LEFT JOIN categories ON posts.category_id = categories.id`;
+                     LEFT JOIN categories ON posts.category_id = categories.id
+                     LEFT JOIN (SELECT post_id, COUNT(*) as cnt FROM likes GROUP BY post_id) lc ON lc.post_id = posts.id
+                     LEFT JOIN (SELECT post_id, COUNT(*) as cnt FROM comments GROUP BY post_id) cc ON cc.post_id = posts.id
+                     LEFT JOIN (SELECT pm.post_id, COALESCE(mf.thumbnail, mf.url) as thumb FROM post_media pm JOIN media_files mf ON pm.media_id = mf.id WHERE mf.media_type IN ('image','video') GROUP BY pm.post_id) pmt ON pmt.post_id = posts.id`;
 
                 let countQuery = `SELECT COUNT(*) as total FROM posts`;
 
@@ -2255,12 +2261,12 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 				// 条件缓存检查：先仅查 updated_at（轻量查询），未修改直接 304，不走后续 JOIN
 				const userId = url.searchParams.get('user_id');
 				if (!userId) {
-					const row = await env.cforum_db.prepare('SELECT created_at FROM posts WHERE id = ?').bind(postId).first<{created_at: string}>();
+					const row = await env.cforum_db.prepare('SELECT updated_at, created_at FROM posts WHERE id = ?').bind(postId).first<{updated_at: string | null; created_at: string}>();
 					if (row) {
 						const ifModifiedSince = request.headers.get('If-Modified-Since');
 						if (ifModifiedSince) {
 							const modSince = new Date(ifModifiedSince).getTime();
-							const postTime = new Date(row.created_at).getTime();
+							const postTime = new Date(row.updated_at || row.created_at).getTime();
 							if (!isNaN(modSince) && !isNaN(postTime) && postTime <= modSince) {
 								return new Response(null, {
 									status: 304,
@@ -2358,7 +2364,7 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 				}
 
 				await env.cforum_db.prepare(
-					'UPDATE posts SET title = ?, content = ?, category_id = ? WHERE id = ?'
+					'UPDATE posts SET title = ?, content = ?, category_id = ?, updated_at = datetime(\'now\') WHERE id = ?'
 				).bind(title.trim(), content.replace(/^[\t\n\r ]+/, '').replace(/[\t\n\r ]+$/, ''), category_id || null, postId).run();
 
 				await security.logAudit(userPayload.id, 'UPDATE_POST', 'post', postId, { title_length: title.length }, request);
@@ -2474,8 +2480,15 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 					return jsonResponse({ error: 'Unauthorized' }, 403);
 				}
 
-				// Delete the comment AND its children (orphans prevention)
-				await env.cforum_db.prepare('DELETE FROM comments WHERE parent_id = ?').bind(id).run();
+				// Delete the comment AND its children (orphans prevention) — use recursive CTE for deep nesting
+				await env.cforum_db.prepare(
+					`WITH RECURSIVE descendants(id) AS (
+						SELECT id FROM comments WHERE parent_id = ?
+						UNION ALL
+						SELECT c.id FROM comments c JOIN descendants d ON c.parent_id = d.id
+					)
+					DELETE FROM comments WHERE id IN (SELECT id FROM descendants)`
+				).bind(id).run();
 				await env.cforum_db.prepare('DELETE FROM comments WHERE id = ?').bind(id).run();
 
 				await security.logAudit(userPayload.id, 'DELETE_COMMENT', 'comment', String(id), {}, request);
@@ -2720,8 +2733,7 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 
 				if (att.password_hash) {
 					if (!password) return jsonResponse({ error: '需要密码' }, 400);
-					const passHash = await hashPassword(password);
-					if (att.password_hash !== passHash) return jsonResponse({ error: '密码错误' }, 403);
+					if (!await verifyPassword(password, att.password_hash)) return jsonResponse({ error: '密码错误' }, 403);
 				}
 
 				return jsonResponse({ link_url: att.link_url });
@@ -2748,8 +2760,10 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 				}
 				// 只允许代理视频文件，防止滥用
 				// 优先校验视频文件扩展名；video.twimg.com 等 CDN 可能不带扩展名，也放行
+				const imgbedHost = env.IMGBED_DOMAIN ? new URL(env.IMGBED_DOMAIN).host : '';
 				const isVideo = /\.(mp4|webm|mov|ogg|mkv|m3u8)(\?|$)/i.test(targetUrl)
-					|| /video\.twimg\.com/i.test(targetUrl);
+					|| /video\.twimg\.com/i.test(targetUrl)
+					|| (imgbedHost && targetUrl.includes(imgbedHost));
 				if (!isVideo) {
 					return jsonResponse({ error: '只允许代理视频文件' }, 400);
 				}

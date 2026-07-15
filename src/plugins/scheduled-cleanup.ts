@@ -9,9 +9,10 @@ export async function runScheduledCleanup(db: D1Database): Promise<{
 	cleanedTempPasswords: number;
 	cleanedRateLimits: number;
 	cleanedSessions: number;
+	cleanedAuditLogs: number;
 }> {
 	const now = Date.now();
-	const result = { cleanedNonces: 0, cleanedTempPasswords: 0, cleanedRateLimits: 0, cleanedSessions: 0 };
+	const result = { cleanedNonces: 0, cleanedTempPasswords: 0, cleanedRateLimits: 0, cleanedSessions: 0, cleanedAuditLogs: 0 };
 	try {
 		const r1 = await db.prepare('DELETE FROM nonces WHERE expires_at < ?').bind(now).run();
 		result.cleanedNonces = r1.meta.changes || 0;
@@ -27,6 +28,10 @@ export async function runScheduledCleanup(db: D1Database): Promise<{
 	try {
 		const r4 = await db.prepare('DELETE FROM sessions WHERE expires_at < ?').bind(now).run();
 		result.cleanedSessions = r4.meta.changes || 0;
+	} catch { /* 表可能不存在 */ }
+	try {
+		const r5 = await db.prepare("DELETE FROM audit_logs WHERE created_at < datetime('now', '-90 days')").run();
+		result.cleanedAuditLogs = r5.meta.changes || 0;
 	} catch { /* 表可能不存在 */ }
 	return result;
 }

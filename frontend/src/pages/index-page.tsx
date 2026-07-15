@@ -3,6 +3,7 @@ import { Bold, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Eye, EyeOff, I
 
 import { TurnstileWidget } from '@/components/turnstile';
 import { PageShell } from '@/components/page-shell';
+import { ErrorBoundary } from '@/components/error-boundary';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -10,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { useConfig } from '@/hooks/use-config';
+import { getSharedCache, setSharedCache } from '@/hooks/use-shared-cache';
 import { apiFetch, API_BASE, formatDate, getSecurityHeaders, type Category, type Post } from '@/lib/api';
 import { getToken, getUser } from '@/lib/auth';
 import { attachFancybox, batchGetMedia, getCachedMedia, highlightCodeBlocks, initVideoPosters, renderMarkdownToHtml, resolveMediaUrls, resolveR2Url } from '@/lib/markdown';
@@ -18,6 +20,9 @@ import { getFirstVideoUrl } from '@/lib/video-thumbnail';
 import { VideoThumbnail } from '@/components/video-thumbnail';
 import { PostThumbnail } from '@/components/post-thumbnail';
 import { validateText } from '@/lib/validators';
+
+const CATEGORIES_CACHE_KEY = 'categories';
+const CATEGORIES_CACHE_TTL = 10 * 60 * 1000; // 10分钟
 
 export function IndexPage() {
 	const { config } = useConfig();
@@ -368,6 +373,8 @@ export function IndexPage() {
 	const [turnstileResetKey, setTurnstileResetKey] = React.useState(0);
 	const previewRef = React.useRef<HTMLDivElement | null>(null);
 	const newContentRef = React.useRef<HTMLTextAreaElement | null>(null);
+	const previewDebounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+	const fancyboxCleanupRef = React.useRef<(() => void) | null>(null);
 	const [adminMenuPostId, setAdminMenuPostId] = React.useState<number | null>(null);
 	const [adminActionPostId, setAdminActionPostId] = React.useState<number | null>(null);
 	const [sortOption, setSortOption] = React.useState('time_desc');
@@ -379,9 +386,15 @@ export function IndexPage() {
 	const turnstileActive = enabled && !!siteKey;
 
 	const fetchCategories = React.useCallback(async () => {
+		const cached = getSharedCache(CATEGORIES_CACHE_KEY);
+		if (cached) {
+			setCategories(cached);
+			return;
+		}
 		try {
 			const list = await apiFetch<Category[]>('/categories', { headers: getSecurityHeaders('GET') });
 			setCategories(list);
+			setSharedCache(CATEGORIES_CACHE_KEY, list, CATEGORIES_CACHE_TTL);
 		} catch {
 			setCategories([]);
 		}
@@ -493,11 +506,23 @@ export function IndexPage() {
 		if (!previewOpen) return;
 		const el = previewRef.current;
 		if (!el) return;
-		highlightCodeBlocks(el);
-		initVideoPosters(el);
-		resolveMediaUrls(el);
-		const cleanup = attachFancybox(el);
-		return cleanup;
+
+		if (previewDebounceRef.current) clearTimeout(previewDebounceRef.current);
+
+		previewDebounceRef.current = setTimeout(() => {
+			highlightCodeBlocks(el);
+			initVideoPosters(el);
+			resolveMediaUrls(el);
+			fancyboxCleanupRef.current = attachFancybox(el);
+		}, 300);
+
+		return () => {
+			if (previewDebounceRef.current) clearTimeout(previewDebounceRef.current);
+			if (fancyboxCleanupRef.current) {
+				fancyboxCleanupRef.current();
+				fancyboxCleanupRef.current = null;
+			}
+		};
 	}, [previewOpen, newContent]);
 
 	React.useEffect(() => {
@@ -827,11 +852,13 @@ export function IndexPage() {
 									{previewOpen ? (
 										<div className="rounded-md border bg-muted/20 p-3">
 											<div className="mb-2 text-xs font-medium text-muted-foreground">预览</div>
-											<div
-												ref={previewRef}
-												className="prose max-w-none break-words [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:my-1"
-												dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(newContent || '', config?.r2_public_url) }}
-											/>
+											<ErrorBoundary>
+												<div
+													ref={previewRef}
+													className="prose max-w-none break-words [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:my-1"
+													dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(newContent || '', config?.r2_public_url) }}
+												/>
+											</ErrorBoundary>
 										</div>
 									) : null}
 								</div>

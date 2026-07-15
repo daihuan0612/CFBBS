@@ -5,13 +5,13 @@ import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { syntaxHighlighting, defaultHighlightStyle } from '@codemirror/language';
 import { oneDark } from '@codemirror/theme-one-dark';
+import { Bold, Italic, Link, Quote, List, ListOrdered, Code2, FileCode2, Minus, AlignCenter, IndentDecrease, BookOpen, Video, Image, Cloud, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { uploadMedia, generateVideoThumbnail } from '@/lib/media';
 import { renderMarkdownToHtml, resolveMediaUrls } from '@/lib/markdown';
-import 'remixicon/fonts/remixicon.css';
 
 // 上传文件类型与大小限制
 const UPLOAD_CONFIG = {
@@ -463,41 +463,37 @@ export function MarkdownEditor({ content, setContent, placeholder: ph, r2PublicU
 			{/* Toolbar */}
 			<div className="flex flex-wrap items-center gap-1 rounded-md border bg-muted/20 p-1.5">
 				<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="加粗 Ctrl+B"
-					onClick={insertBold}><i className="ri-bold text-sm leading-none" /></Button>
+					onClick={insertBold}><Bold className="h-3.5 w-3.5" /></Button>
 				<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="斜体 Ctrl+I"
-					onClick={insertItalic}><i className="ri-italic text-sm leading-none" /></Button>
+					onClick={insertItalic}><Italic className="h-3.5 w-3.5" /></Button>
 				<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="链接 Ctrl+K"
-					onClick={insertLink}><i className="ri-link text-sm leading-none" /></Button>
+					onClick={insertLink}><Link className="h-3.5 w-3.5" /></Button>
 				<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="引用"
-					onClick={insertQuote}><i className="ri-double-quotes-l text-sm leading-none" /></Button>
+					onClick={insertQuote}><Quote className="h-3.5 w-3.5" /></Button>
 				<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="无序列表"
-					onClick={insertList}><i className="ri-list-unordered text-sm leading-none" /></Button>
+					onClick={insertList}><List className="h-3.5 w-3.5" /></Button>
 				<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="有序列表"
-					onClick={insertOrderedList}><i className="ri-list-ordered text-sm leading-none" /></Button>
+					onClick={insertOrderedList}><ListOrdered className="h-3.5 w-3.5" /></Button>
 				<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="行内代码"
-					onClick={insertCode}><i className="ri-code-s-slash-line text-sm leading-none" /></Button>
+					onClick={insertCode}><Code2 className="h-3.5 w-3.5" /></Button>
 				<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="代码块"
-					onClick={insertCodeBlock}><i className="ri-code-box-line text-sm leading-none" /></Button>
+					onClick={insertCodeBlock}><FileCode2 className="h-3.5 w-3.5" /></Button>
 				<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="分割线"
-					onClick={insertHR}><i className="ri-separator text-sm leading-none" /></Button>
+					onClick={insertHR}><Minus className="h-3.5 w-3.5" /></Button>
 				<span className="mx-1 h-5 w-px bg-border" />
 				<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="居中"
-					onClick={insertCenter}><i className="ri-align-center text-sm leading-none" /></Button>
+					onClick={insertCenter}><AlignCenter className="h-3.5 w-3.5" /></Button>
 				<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="首行缩进（全角空格）"
-					onClick={insertParagraphIndent}>
-					<i className="ri-indent-decrease text-sm leading-none" />
-				</Button>
+					onClick={insertParagraphIndent}><IndentDecrease className="h-3.5 w-3.5" /></Button>
 				<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="小说格式化（章标题+首行缩进）"
-					onClick={insertNovelFormat}>
-					<i className="ri-book-2-line text-sm leading-none" />
-				</Button>
+					onClick={insertNovelFormat}><BookOpen className="h-3.5 w-3.5" /></Button>
 				<span className="mx-1 h-5 w-px bg-border" />
 				<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="插入视频"
-					onClick={() => setVideoDialogOpen(true)}><i className="ri-video-line text-sm leading-none" /></Button>
+					onClick={() => setVideoDialogOpen(true)}><Video className="h-3.5 w-3.5" /></Button>
 				<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="插入图片链接"
-					onClick={() => setImageDialogOpen(true)}><i className="ri-image-line text-sm leading-none" /></Button>
+					onClick={() => setImageDialogOpen(true)}><Image className="h-3.5 w-3.5" /></Button>
 				<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="插入网盘链接"
-					onClick={() => setCloudDialogOpen(true)}><i className="ri-cloud-line text-sm leading-none" /></Button>
+					onClick={() => setCloudDialogOpen(true)}><Cloud className="h-3.5 w-3.5" /></Button>
 				{uploadProgress !== null ? (
 					<div className="flex items-center gap-2 px-1">
 						<div className="h-2 w-20 rounded-full bg-muted overflow-hidden">
@@ -512,7 +508,7 @@ export function MarkdownEditor({ content, setContent, placeholder: ph, r2PublicU
 				<label className="relative cursor-pointer">
 					<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="上传文件"
 						disabled={uploadProgress !== null} asChild>
-						<span><i className="ri-upload-line text-sm leading-none" /></span>
+						<span><Upload className="h-3.5 w-3.5" /></span>
 					</Button>
 					<input type="file"
 						accept=".jpg,.jpeg,.png,.gif,.webp,.bmp,.mp4,.webm,.mov,.avi,.zip,.rar,.7z,.tar,.gz,.tgz"
@@ -523,7 +519,7 @@ export function MarkdownEditor({ content, setContent, placeholder: ph, r2PublicU
 				<label className="relative cursor-pointer">
 					<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="上传文件"
 						disabled={uploadProgress !== null} asChild>
-						<span><i className="ri-upload-line text-sm leading-none" /></span>
+						<span><Upload className="h-3.5 w-3.5" /></span>
 					</Button>
 					<input type="file"
 						accept=".jpg,.jpeg,.png,.gif,.webp,.bmp,.mp4,.webm,.mov,.avi,.zip,.rar,.7z,.tar,.gz,.tgz"

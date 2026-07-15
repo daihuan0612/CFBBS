@@ -1,7 +1,5 @@
 import * as React from 'react';
 
-import QRCode from 'qrcode';
-
 import { PageShell } from '@/components/page-shell';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -46,7 +44,10 @@ export function SettingsPage() {
 
 	React.useEffect(() => {
 		if (!totpUri || !qrCanvasRef.current) return;
-		QRCode.toCanvas(qrCanvasRef.current, totpUri).catch(() => {});
+		(async () => {
+			const QRCode = (await import('qrcode')).default;
+			QRCode.toCanvas(qrCanvasRef.current!, totpUri).catch(() => {});
+		})();
 	}, [totpUri]);
 
 	async function saveProfile() {

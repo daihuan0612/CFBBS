@@ -10,23 +10,39 @@ const CAPTURE_TIMEOUT = 15000;
 // 正在截帧中的视频 URL，避免同 URL 重复截帧
 const inFlightCaptures = new Map<string, Promise<string>>();
 
+const THUMBNAIL_TTL = 7 * 24 * 60 * 60 * 1000; // 7天
+
+interface CachedEntry {
+	url: string;
+	cached_at: number;
+}
+
 /**
- * 从 localStorage 获取缓存的缩略图 URL
+ * 从 localStorage 获取缓存的缩略图 URL（含 TTL 检查）
  */
 export function getCachedThumbnail(videoUrl: string): string | null {
 	try {
-		return localStorage.getItem(CACHE_PREFIX + videoUrl);
+		const raw = localStorage.getItem(CACHE_PREFIX + videoUrl);
+		if (!raw) return null;
+		const entry: CachedEntry = JSON.parse(raw);
+		if (entry.cached_at + THUMBNAIL_TTL > Date.now()) {
+			return entry.url;
+		}
+		// 过期删除
+		localStorage.removeItem(CACHE_PREFIX + videoUrl);
+		return null;
 	} catch {
 		return null;
 	}
 }
 
 /**
- * 缓存缩略图 URL 到 localStorage
+ * 缓存缩略图 URL 到 localStorage（带 TTL）
  */
 export function setCachedThumbnail(videoUrl: string, thumbUrl: string): void {
 	try {
-		localStorage.setItem(CACHE_PREFIX + videoUrl, thumbUrl);
+		const entry: CachedEntry = { url: thumbUrl, cached_at: Date.now() };
+		localStorage.setItem(CACHE_PREFIX + videoUrl, JSON.stringify(entry));
 	} catch {
 		// localStorage 满了就忽略
 	}

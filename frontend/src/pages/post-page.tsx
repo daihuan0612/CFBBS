@@ -3,6 +3,7 @@ import { ArrowLeft, Eye, Heart, Lock, ExternalLink, MoreVertical, Pin, Pencil, R
 
 import { TurnstileWidget } from '@/components/turnstile';
 import { PageShell } from '@/components/page-shell';
+import { ErrorBoundary } from '@/components/error-boundary';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -11,11 +12,15 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { MarkdownEditor } from '@/components/markdown-editor';
 import { useConfig } from '@/hooks/use-config';
+import { getSharedCache, setSharedCache } from '@/hooks/use-shared-cache';
 import { apiFetch, API_BASE, formatDate, getSecurityHeaders, type Category, type Comment, type Post } from '@/lib/api';
 import { getToken, getUser } from '@/lib/auth';
 import { attachFancybox, highlightCodeBlocks, initVideoPosters, renderMarkdownToHtml, resolveMediaUrls } from '@/lib/markdown';
 import { attachMediaToPost } from '@/lib/media';
 import { validateText } from '@/lib/validators';
+
+const CATEGORIES_CACHE_KEY = 'categories';
+const CATEGORIES_CACHE_TTL = 10 * 60 * 1000; // 10分钟
 
 export function PostPage() {
 	const token = getToken();
@@ -97,6 +102,14 @@ export function PostPage() {
 		}
 	}, [postId, userId]);
 
+	const fetchComments = React.useCallback(async () => {
+		if (!postId) return;
+		try {
+			const cs = await apiFetch<Comment[]>(`/posts/${postId}/comments`);
+			setComments(cs);
+		} catch {}
+	}, [postId]);
+
 	React.useEffect(() => {
 		refresh();
 	}, [refresh]);
@@ -153,8 +166,17 @@ export function PostPage() {
 	}
 
 	React.useEffect(() => {
+		const cached = getSharedCache(CATEGORIES_CACHE_KEY);
+		if (cached) {
+			setAllCategories(Array.isArray(cached) ? cached : []);
+			return;
+		}
 		void apiFetch<Category[]>('/categories')
-			.then((list) => setAllCategories(Array.isArray(list) ? list : []))
+			.then((list) => {
+				const cats = Array.isArray(list) ? list : [];
+				setAllCategories(cats);
+				setSharedCache(CATEGORIES_CACHE_KEY, cats, CATEGORIES_CACHE_TTL);
+			})
 			.catch(() => setAllCategories([]));
 	}, []);
 
@@ -167,7 +189,7 @@ export function PostPage() {
 		resolveMediaUrls(el);
 		const cleanup = attachFancybox(el);
 		return cleanup;
-	}, [post, comments.length, isEditing]);
+	}, [post?.id, post?.content, isEditing]);
 
 	React.useEffect(() => {
 		if (!adminMenuOpen) return;
@@ -250,7 +272,7 @@ export function PostPage() {
 			setReplyTo(null);
 			setTurnstileToken('');
 			setTurnstileResetKey((v) => v + 1);
-			await refresh();
+			await fetchComments();
 		} catch (e: any) {
 			setCommentError(String(e?.message || e));
 			setTurnstileToken('');
@@ -267,7 +289,7 @@ export function PostPage() {
 				method: 'DELETE',
 				headers: getSecurityHeaders('DELETE')
 			});
-			await refresh();
+			await fetchComments();
 		} catch (e: any) {
 			alert(String(e?.message || e));
 		}
@@ -510,11 +532,13 @@ export function PostPage() {
 										</Button>
 									</div>
 								) : (
-									<div
-										className="w-full max-w-full prose !max-w-full break-words [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:my-1"
-										ref={contentRef}
-										dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(post.content || '', config?.r2_public_url) }}
-									/>
+									<ErrorBoundary>
+										<div
+											className="w-full max-w-full prose !max-w-full break-words [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:my-1"
+											ref={contentRef}
+											dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(post.content || '', config?.r2_public_url) }}
+										/>
+									</ErrorBoundary>
 								)}
 							</CardContent>
 						</Card>
