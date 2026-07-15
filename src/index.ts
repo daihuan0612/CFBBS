@@ -717,8 +717,8 @@ export default {
 				const postId = formData.get('post_id') || 'general';
 				const type = formData.get('type') || 'post';
 
-				// 普通会员只能上传头像，不允许上传帖子图片
-				if (user.role !== 'admin' && type !== 'avatar') {
+				// 普通会员只能上传头像和视频缩略图，不允许上传帖子图片
+				if (user.role !== 'admin' && type !== 'avatar' && type !== 'thumbnail') {
 					return jsonResponse({ error: '仅管理员可上传文件，普通会员请使用图片直链' }, 403);
 				}
 
@@ -736,7 +736,7 @@ export default {
 				return jsonResponse({ error: '文件大小超过限制（最大 2MB）' }, 400);
 				}
 
-				const imageKey = await uploadImage(env as unknown as S3Env, file, userId, postId.toString(), type as 'post' | 'avatar');
+				const imageKey = await uploadImage(env as unknown as S3Env, file, userId, postId.toString(), type as 'post' | 'avatar' | 'thumbnail');
 			const r2PublicUrl = (env as any).R2_PUBLIC_BASE_URL as string | undefined;
 			const publicBase = (env as any).BUCKET ? (r2PublicUrl || `${getBaseUrl()}/r2`) : undefined;
 			const imageUrl = getPublicUrl(env as unknown as S3Env, imageKey, publicBase);

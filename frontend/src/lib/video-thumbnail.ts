@@ -234,7 +234,7 @@ export async function uploadThumbnail(blob: Blob, id: string | number): Promise<
 	const ext = blob.type === 'image/jpeg' ? 'jpg' : 'webp';
 	const file = new File([blob], `thumb-${id}.${ext}`, { type: blob.type });
 	formData.append('file', file);
-	formData.append('type', 'post');
+	formData.append('type', 'thumbnail');
 	formData.append('post_id', String(id));
 
 	const res = await fetch(`${API_BASE}/upload`, {

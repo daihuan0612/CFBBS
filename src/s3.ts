@@ -21,7 +21,7 @@ function getClient(env: S3Env) {
     });
 }
 
-export async function uploadImage(env: S3Env, file: File, userId: string | number, postId: string | number = 'general', type: 'post' | 'avatar' = 'post'): Promise<string> {
+export async function uploadImage(env: S3Env, file: File, userId: string | number, postId: string | number = 'general', type: 'post' | 'avatar' | 'thumbnail' = 'post'): Promise<string> {
     const pathPrefix = env.AWS_PATH_PREFIX || '';
     const filename = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '')}`;
     let key = '';
