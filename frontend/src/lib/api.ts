@@ -40,6 +40,7 @@ export type Post = {
 	like_count?: number;
 	comment_count?: number;
 	liked?: boolean;
+	thumbnail?: string | null;
 };
 
 export type Comment = {

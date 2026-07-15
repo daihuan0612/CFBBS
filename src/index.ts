@@ -2188,7 +2188,8 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
                         users.role as author_role,
                         categories.name as category_name,
                         (SELECT COUNT(*) FROM likes WHERE likes.post_id = posts.id) as like_count,
-                        (SELECT COUNT(*) FROM comments WHERE comments.post_id = posts.id) as comment_count
+                        (SELECT COUNT(*) FROM comments WHERE comments.post_id = posts.id) as comment_count,
+                        (SELECT COALESCE(mf.thumbnail, mf.url) FROM post_media pm JOIN media_files mf ON pm.media_id = mf.id WHERE pm.post_id = posts.id AND mf.media_type IN ('image','video') LIMIT 1) as thumbnail
                      FROM posts
                      JOIN users ON posts.author_id = users.id
                      LEFT JOIN categories ON posts.category_id = categories.id`;

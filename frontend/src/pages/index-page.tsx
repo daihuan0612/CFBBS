@@ -16,6 +16,7 @@ import { attachFancybox, batchGetMedia, getCachedMedia, highlightCodeBlocks, ini
 import { uploadMedia, generateVideoThumbnail, attachMediaToPost } from '@/lib/media';
 import { getFirstVideoUrl } from '@/lib/video-thumbnail';
 import { VideoThumbnail } from '@/components/video-thumbnail';
+import { PostThumbnail } from '@/components/post-thumbnail';
 import { validateText } from '@/lib/validators';
 
 export function IndexPage() {
@@ -1022,7 +1023,7 @@ export function IndexPage() {
 						</Card>
 					) : (
 						posts.map((p) => {
-							const coverUrl = getCoverImageUrl(p.content || '') || mediaCovers[p.id] || '';
+							const coverUrl = getCoverImageUrl(p.content || '') || mediaCovers[p.id] || p.thumbnail || '';
 							// 没有图片时检测视频，截帧作为缩略图
 							let videoUrl: string | null = null;
 							if (!coverUrl) {
@@ -1141,7 +1142,7 @@ export function IndexPage() {
 														</div>
 													) : null}
 												</div>
-												<div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+												<div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs sm:text-sm text-muted-foreground">
 													<span className="inline-flex items-center gap-2">
 														{p.author_avatar ? (
 															<img
@@ -1188,6 +1189,7 @@ export function IndexPage() {
 													</span>
 												</div>
 											</div>
+											<PostThumbnail src={p.thumbnail} />
 										</div>
 									</CardContent>
 								</Card>
