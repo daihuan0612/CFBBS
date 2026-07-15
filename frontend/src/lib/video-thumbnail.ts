@@ -143,7 +143,6 @@ export async function captureVideoFrame(videoUrl: string): Promise<Blob> {
 			if (cleanedUp) return;
 			try {
 				const canvas = document.createElement('canvas');
-				// 缩略图不需要原图那么大，按比例缩小提高性能
 				const maxW = 320;
 				const scale = Math.min(1, maxW / video.videoWidth);
 				canvas.width = Math.round(video.videoWidth * scale);
@@ -155,18 +154,25 @@ export async function captureVideoFrame(videoUrl: string): Promise<Blob> {
 					return;
 				}
 				ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-				canvas.toBlob(
-					(blob) => {
+				// 先尝试 WebP（体积小），不支持则回退到 JPEG
+				const tryFormats = ['image/webp', 'image/jpeg'] as const;
+				let captured = false;
+				for (const fmt of tryFormats) {
+					if (captured) break;
+					try {
+						const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, fmt, 0.8));
 						if (blob) {
 							resolve(blob);
-						} else {
-							reject(new Error('截帧失败'));
+							captured = true;
 						}
-						cleanup();
-					},
-					'image/webp',
-					0.8
-				);
+					} catch {
+						// 格式不支持继续尝试下一个
+					}
+				}
+				if (!captured) {
+					reject(new Error('截帧失败（浏览器不支持 WebP/JPEG 输出）'));
+				}
+				cleanup();
 			} catch (e) {
 				cleanup();
 				reject(e);
@@ -225,7 +231,8 @@ export async function captureAndUpload(videoUrl: string, postId: number): Promis
  */
 export async function uploadThumbnail(blob: Blob, id: string | number): Promise<string> {
 	const formData = new FormData();
-	const file = new File([blob], `thumb-${id}.webp`, { type: 'image/webp' });
+	const ext = blob.type === 'image/jpeg' ? 'jpg' : 'webp';
+	const file = new File([blob], `thumb-${id}.${ext}`, { type: blob.type });
 	formData.append('file', file);
 	formData.append('type', 'post');
 	formData.append('post_id', String(id));
