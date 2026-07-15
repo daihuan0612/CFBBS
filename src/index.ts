@@ -1131,12 +1131,14 @@ export default {
 					 ctx.waitUntil(Promise.all(deletionPromises).catch(err => console.error('Failed to delete user images', err)));
 				}
 
-				// 2. Delete all data in a single batch
+				// 2. Anonymize user's comments on other posts (keep structure to prevent orphan replies)
+				await env.cforum_db.prepare("UPDATE comments SET content = '该用户已注销' WHERE author_id = ?").bind(user_id).run();
+
+				// Delete all data in a single batch
 				await env.cforum_db.batch([
 					env.cforum_db.prepare('DELETE FROM likes WHERE post_id IN (SELECT id FROM posts WHERE author_id = ?)').bind(user_id),
 					env.cforum_db.prepare('DELETE FROM comments WHERE post_id IN (SELECT id FROM posts WHERE author_id = ?)').bind(user_id),
 					env.cforum_db.prepare('DELETE FROM likes WHERE user_id = ?').bind(user_id),
-					env.cforum_db.prepare('DELETE FROM comments WHERE author_id = ?').bind(user_id),
 					env.cforum_db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(user_id),
 					env.cforum_db.prepare('DELETE FROM notifications WHERE user_id = ? OR actor_id = ?').bind(user_id, user_id),
 					env.cforum_db.prepare('DELETE FROM user_watermarks WHERE user_id = ?').bind(user_id),
@@ -1809,12 +1811,14 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 				// Pre-fetch user info for notifications (before batch deletes the user)
 				const userToDelete = await env.cforum_db.prepare('SELECT email, username FROM users WHERE id = ?').bind(id).first();
 
+				// Anonymize user's comments on other posts (keep structure to prevent orphan replies)
+				await env.cforum_db.prepare("UPDATE comments SET content = '该用户已注销' WHERE author_id = ?").bind(id).run();
+
 				// Batch delete all user data
 				await env.cforum_db.batch([
 					env.cforum_db.prepare('DELETE FROM likes WHERE post_id IN (SELECT id FROM posts WHERE author_id = ?)').bind(id),
 					env.cforum_db.prepare('DELETE FROM comments WHERE post_id IN (SELECT id FROM posts WHERE author_id = ?)').bind(id),
 					env.cforum_db.prepare('DELETE FROM likes WHERE user_id = ?').bind(id),
-					env.cforum_db.prepare('DELETE FROM comments WHERE author_id = ?').bind(id),
 					env.cforum_db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(id),
 					env.cforum_db.prepare('DELETE FROM notifications WHERE user_id = ? OR actor_id = ?').bind(id, id),
 					env.cforum_db.prepare('DELETE FROM user_watermarks WHERE user_id = ?').bind(id),

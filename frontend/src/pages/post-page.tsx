@@ -56,7 +56,7 @@ export function PostPage() {
 	const [attachFileName, setAttachFileName] = React.useState('');
 	const [attachExtractCode, setAttachExtractCode] = React.useState('');
 	const [attachPassword, setAttachPassword] = React.useState('');
-	const [attachVerifyError, setAttachVerifyError] = React.useState('');
+	const [attachVerifyError, setAttachVerifyError] = React.useState<Record<number, string>>({});
 	const [verifiedLinks, setVerifiedLinks] = React.useState<Record<number, string>>({});
 	const attEnabled = config?.encrypted_attachments_enabled === true;
 
@@ -152,7 +152,7 @@ export function PostPage() {
 
 	// 验证密码解锁链接
 	async function verifyAttachmentLink(attId: number, password: string) {
-		setAttachVerifyError('');
+		setAttachVerifyError(v => { const next = { ...v }; delete next[attId]; return next; });
 		try {
 			const data = await apiFetch<{ link_url: string }>('/attachments/' + attId + '/verify', {
 				method: 'POST',
@@ -161,7 +161,7 @@ export function PostPage() {
 			});
 			setVerifiedLinks(v => ({ ...v, [attId]: data.link_url }));
 		} catch (e: any) {
-			setAttachVerifyError(String(e?.message || e));
+			setAttachVerifyError(v => ({ ...v, [attId]: String(e?.message || e) }));
 		}
 	}
 
@@ -598,7 +598,7 @@ export function PostPage() {
 													const input = document.getElementById('pwd-' + att.id) as HTMLInputElement;
 													if (input?.value) verifyAttachmentLink(att.id, input.value);
 												}}><Lock className="h-4 w-4" /> 解锁</Button>
-												{attachVerifyError ? <span className="text-xs text-destructive">{attachVerifyError}</span> : null}
+												{attachVerifyError[att.id] ? <span className="text-xs text-destructive">{attachVerifyError[att.id]}</span> : null}
 											</div>
 										) : (
 											<a href={att.link_url} target="_blank" rel="noopener noreferrer">
