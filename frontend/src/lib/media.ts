@@ -83,7 +83,7 @@ function uploadToImgBed(
 		xhr.onerror = () => reject(new Error('网络错误，上传失败'));
 		xhr.onabort = () => reject(new Error('上传已取消'));
 
-		const uploadUrl = `${imgbedDomain}/upload?authCode=${encodeURIComponent(imgbedAuthCode)}&autoRetry=false`;
+		const uploadUrl = `${imgbedDomain}/upload?authCode=${encodeURIComponent(imgbedAuthCode)}&uploadFolder=tucao&autoRetry=false`;
 		xhr.open('POST', uploadUrl);
 		xhr.send(formData);
 	});
