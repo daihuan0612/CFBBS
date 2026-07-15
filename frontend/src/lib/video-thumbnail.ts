@@ -198,8 +198,11 @@ export async function captureAndUpload(videoUrl: string, postId: number): Promis
 	const promise = (async () => {
 		try {
 			const captureUrl = getCaptureUrl(videoUrl);
+			console.log('[thumbnail] starting capture for post', postId, 'videoUrl:', videoUrl, 'captureUrl:', captureUrl);
 			const blob = await captureVideoFrame(captureUrl);
+			console.log('[thumbnail] capture success for post', postId, 'blob size:', blob.size);
 			const url = await uploadThumbnail(blob, postId);
+			console.log('[thumbnail] upload success for post', postId, 'url:', url);
 
 			// 存入数据库，供所有访客复用（幂等：已有则返回现存的）
 			let finalUrl = url;
@@ -217,6 +220,9 @@ export async function captureAndUpload(videoUrl: string, postId: number): Promis
 
 			setCachedThumbnail(videoUrl, finalUrl);
 			return finalUrl;
+		} catch (e) {
+			console.error('[thumbnail] captureAndUpload failed for post', postId, 'videoUrl:', videoUrl, 'error:', e);
+			throw e;
 		} finally {
 			inFlightCaptures.delete(videoUrl);
 		}
