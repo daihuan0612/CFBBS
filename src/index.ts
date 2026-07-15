@@ -255,7 +255,7 @@ export default {
 			} else {
 				// 缓存策略: GET 请求按路径区分缓存时间
 				const cacheablePaths: [string, string][] = [
-					['/api/posts', 'private, max-age=120, stale-while-revalidate=3600'],
+					['/api/posts', 'public, max-age=0, s-maxage=120, stale-while-revalidate=600'],
 					['/api/users', 'private, max-age=60, stale-while-revalidate=600'],
 				];
 				const matched = method === 'GET' && status < 400 ? cacheablePaths.find(([p]) => url.pathname.startsWith(p)) : undefined;
