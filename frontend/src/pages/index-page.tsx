@@ -1094,7 +1094,7 @@ export function IndexPage() {
 						</Card>
 					) : (
 						posts.map((p) => {
-							const coverUrl = getCoverImageUrl(p.content || '') || mediaCovers[p.id] || p.thumbnail || '';
+							const coverUrl = getCoverImageUrl(p.content || '') || p.thumbnail || mediaCovers[p.id] || '';
 							// 提取视频 URL，供截帧缩略图回退使用
 							let videoUrl: string | null = null;
 							const rawVideo = getFirstVideoUrl(p.content || '') || mediaVideoUrls[p.id];
