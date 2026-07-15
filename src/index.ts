@@ -717,8 +717,8 @@ export default {
 				const postId = formData.get('post_id') || 'general';
 				const type = formData.get('type') || 'post';
 
-				// 普通会员只能上传头像和视频缩略图，不允许上传帖子图片
-				if (user.role !== 'admin' && type !== 'avatar' && type !== 'thumbnail') {
+				// 缩略图全部放行（不限角色）；头像仅限普通会员；帖子图片仅限管理员
+				if (type !== 'thumbnail' && user.role !== 'admin' && type !== 'avatar') {
 					return jsonResponse({ error: '仅管理员可上传文件，普通会员请使用图片直链' }, 403);
 				}
 
