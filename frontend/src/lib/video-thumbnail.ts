@@ -158,7 +158,7 @@ export async function captureVideoFrame(videoUrl: string): Promise<Blob> {
 				const tryFormats = ['image/webp', 'image/jpeg'] as const;
 				let captured = false;
 				for (const fmt of tryFormats) {
-					if (captured) break;
+					if (captured || cleanedUp) break;
 					try {
 						const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, fmt, 0.8));
 						if (blob) {
