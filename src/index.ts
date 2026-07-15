@@ -2237,13 +2237,13 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
                         categories.name as category_name,
                         COALESCE(lc.cnt, 0) as like_count,
                         COALESCE(cc.cnt, 0) as comment_count,
-                        COALESCE(posts.thumbnail_url, pmt.thumb) as thumbnail
+                        COALESCE(posts.thumbnail_url, pmt.thumb, pmt.media_url) as thumbnail
                      FROM posts
                      JOIN users ON posts.author_id = users.id
                      LEFT JOIN categories ON posts.category_id = categories.id
                      LEFT JOIN (SELECT post_id, COUNT(*) as cnt FROM likes GROUP BY post_id) lc ON lc.post_id = posts.id
                      LEFT JOIN (SELECT post_id, COUNT(*) as cnt FROM comments GROUP BY post_id) cc ON cc.post_id = posts.id
-                     LEFT JOIN (SELECT pm.post_id, mf.thumbnail as thumb FROM post_media pm JOIN media_files mf ON pm.media_id = mf.id WHERE mf.media_type IN ('image','video') AND mf.thumbnail IS NOT NULL GROUP BY pm.post_id) pmt ON pmt.post_id = posts.id`;
+                     LEFT JOIN (SELECT pm.post_id, mf.thumbnail as thumb, mf.url as media_url FROM post_media pm JOIN media_files mf ON pm.media_id = mf.id WHERE mf.media_type IN ('image','video') GROUP BY pm.post_id) pmt ON pmt.post_id = posts.id`;
 
                 let countQuery = `SELECT COUNT(*) as total FROM posts`;
 

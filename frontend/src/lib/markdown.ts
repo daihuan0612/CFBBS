@@ -146,6 +146,11 @@ export async function batchGetMedia(ids: string[]): Promise<void> {
 		if (mediaCache.has(id)) return false;
 		const local = getLocalMediaCache(id);
 		if (local) {
+			// 视频缩略图未生成时不使用缓存，确保能拉取最新状态
+			if (local.media_type === 'video' && !local.thumbnail) {
+				localStorage.removeItem(`${MEDIA_CACHE_PREFIX}${id}`);
+				return true;
+			}
 			mediaCache.set(id, local);
 			return false;
 		}
@@ -161,7 +166,12 @@ export async function batchGetMedia(ids: string[]): Promise<void> {
 			const data = await res.json();
 			if (data.success) {
 				mediaCache.set(id, data);
-				setLocalMediaCache(id, data);
+				// 视频缩略图未生成时不持久化缓存，下次重新拉取
+				if (data.media_type === 'video' && !data.thumbnail) {
+					// 仅内存缓存，不写 localStorage
+				} else {
+					setLocalMediaCache(id, data);
+				}
 			}
 		} catch {
 			// 单个失败不影响其他
