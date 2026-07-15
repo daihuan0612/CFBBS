@@ -103,6 +103,10 @@
 	 * Service Bindings (communicate between multiple Workers)
 	 * https://developers.cloudflare.com/workers/wrangler/configuration/#service-bindings
 	 */
+	"assets": {
+		"directory": "./public",
+		"binding": "ASSETS"
+	},
 	"vars": {
 		"IMGBED_DOMAIN": "https://yun.siyou.qzz.io",
 		"IMGBED_AUTH_CODE": "123456"
