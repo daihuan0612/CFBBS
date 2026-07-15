@@ -1574,8 +1574,13 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 						: "SELECT id, name, created_at FROM categories WHERE name != '公告' ORDER BY created_at ASC"
 				).all<any>();
 				const resp = jsonResponse(results);
-				resp.headers.set('Cache-Control', isAdmin ? 'no-store, private' : 'public, max-age=86400, stale-while-revalidate=604800');
-				if (!isAdmin) resp.headers.set('CDN-Cache-Control', 'public, max-age=86400');
+				if (isAdmin) {
+					resp.headers.set('Cache-Control', 'no-cache, no-store, private');
+					resp.headers.set('CDN-Cache-Control', 'no-cache');
+				} else {
+					resp.headers.set('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
+					resp.headers.set('CDN-Cache-Control', 'public, max-age=86400');
+				}
 				return resp;
 			} catch (e) {
 				return handleError(e);
