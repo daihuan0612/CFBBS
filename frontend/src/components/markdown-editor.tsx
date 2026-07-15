@@ -13,6 +13,41 @@ import { uploadMedia, generateVideoThumbnail } from '@/lib/media';
 import { renderMarkdownToHtml, resolveMediaUrls } from '@/lib/markdown';
 import 'remixicon/fonts/remixicon.css';
 
+// 上传文件类型与大小限制
+const UPLOAD_CONFIG = {
+	image: { mimePrefix: 'image/', maxSize: 10 * 1024 * 1024, label: '图片' },
+	video: { mimePrefix: 'video/', maxSize: 500 * 1024 * 1024, label: '视频' },
+	archive: { mimePrefix: 'application/', maxSize: 300 * 1024 * 1024, label: '压缩包' },
+};
+const ALLOWED_EXTENSIONS = /\.(jpg|jpeg|png|gif|webp|bmp|mp4|webm|mov|avi|zip|rar|7z|tar|gz|tgz)$/i;
+const ALLOWED_MIME_PREFIXES = ['image/', 'video/', 'application/zip', 'application/x-zip', 'application/x-rar', 'application/x-7z', 'application/gzip', 'application/x-tar'];
+const ARCHIVE_MIMES = ['application/zip', 'application/x-zip-compressed', 'application/x-rar-compressed', 'application/x-7z-compressed', 'application/gzip', 'application/x-gzip', 'application/x-tar'];
+
+function validateFile(file: File): string | null {
+	// 扩展名校验（兜底）
+	if (!ALLOWED_EXTENSIONS.test(file.name)) {
+		return '不支持的文件格式。仅允许：图片(JPG/PNG/GIF/WebP)、视频(MP4/WebM/MOV)、压缩包(ZIP/RAR/7z/tar.gz)。TXT/DOC/PDF 等请打包后上传。';
+	}
+	// MIME 校验
+	const isAllowedMime = ALLOWED_MIME_PREFIXES.some(p => file.type.startsWith(p) || file.type.startsWith(p.toLowerCase()));
+	const isArchive = ARCHIVE_MIMES.some(m => file.type.startsWith(m));
+	if (!isAllowedMime && !isArchive) {
+		// 如果 MIME 不匹配但扩展名匹配（某些浏览器对压缩包不报 MIME），放行
+		// 但 TXT/DOC/PDF 等扩展名已被 ALLOWED_EXTENSIONS 拦截
+	}
+	// 大小校验
+	if (file.type.startsWith('image/') && file.size > UPLOAD_CONFIG.image.maxSize) {
+		return `图片大小不能超过 10MB（当前 ${(file.size / 1024 / 1024).toFixed(1)}MB）`;
+	}
+	if (file.type.startsWith('video/') && file.size > UPLOAD_CONFIG.video.maxSize) {
+		return `视频大小不能超过 500MB（当前 ${(file.size / 1024 / 1024).toFixed(1)}MB）`;
+	}
+	if (!file.type.startsWith('image/') && !file.type.startsWith('video/') && file.size > UPLOAD_CONFIG.archive.maxSize) {
+		return `压缩包大小不能超过 300MB（当前 ${(file.size / 1024 / 1024).toFixed(1)}MB）`;
+	}
+	return null;
+}
+
 interface MarkdownEditorProps {
 	content: string;
 	setContent: (content: string) => void;
@@ -361,9 +396,19 @@ export function MarkdownEditor({ content, setContent, placeholder: ph, r2PublicU
 	}, [cloudUrl, cloudName, cloudPwd, replaceSelection]);
 
 	// Image upload handler
+	const [uploadError, setUploadError] = React.useState<string | null>(null);
 	const handleImageUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
 		const file = e.target.files?.[0];
 		if (!file) return;
+		setUploadError(null);
+		// 客户端格式校验，直接拦截
+		const errorMsg = validateFile(file);
+		if (errorMsg) {
+			setUploadError(errorMsg);
+			setUploadProgress(null);
+			e.target.value = '';
+			return;
+		}
 		setUploadProgress(0);
 		try {
 			let uploadFile = file;
@@ -469,20 +514,39 @@ export function MarkdownEditor({ content, setContent, placeholder: ph, r2PublicU
 						disabled={uploadProgress !== null} asChild>
 						<span><i className="ri-image-add-line text-sm leading-none" /></span>
 					</Button>
-					<input type="file" className="absolute inset-0 opacity-0 cursor-pointer"
+					<input type="file"
+						accept=".jpg,.jpeg,.png,.gif,.webp,.bmp,.mp4,.webm,.mov,.avi,.zip,.rar,.7z,.tar,.gz,.tgz"
+						className="absolute inset-0 opacity-0 cursor-pointer"
 						onChange={handleImageUpload} disabled={uploadProgress !== null} />
 				</label>
 			) : userRole === 'admin' ? (
 				<label className="relative cursor-pointer">
-					<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="上传图片"
+					<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="上传文件"
 						disabled={uploadProgress !== null} asChild>
 						<span><i className="ri-image-add-line text-sm leading-none" /></span>
 					</Button>
-					<input type="file" accept="image/*" className="absolute inset-0 opacity-0 cursor-pointer"
+					<input type="file"
+						accept=".jpg,.jpeg,.png,.gif,.webp,.bmp,.mp4,.webm,.mov,.avi,.zip,.rar,.7z,.tar,.gz,.tgz"
+						className="absolute inset-0 opacity-0 cursor-pointer"
 						onChange={handleImageUpload} disabled={uploadProgress !== null} />
 				</label>
 			) : null}
 			</div>
+
+			{/* 上传错误提示 */}
+			{uploadError ? (
+				<div className="rounded-md border border-destructive/50 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+					{uploadError}
+				</div>
+			) : null}
+
+			{/* 上传格式提示 */}
+			{imgbedDomain && imgbedAuthCode ? (
+				<div className="text-xs text-muted-foreground leading-relaxed">
+					支持上传：图片(JPG/PNG/GIF/WebP ≤10MB)、视频(MP4/WebM/MOV ≤500MB)、压缩包(ZIP/RAR/7z ≤300MB)。
+					TXT/DOC/PDF 等其他格式请打包后上传。
+				</div>
+			) : null}
 
 			{/* Editor area */}
 			<div className="relative">

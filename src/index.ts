@@ -708,18 +708,12 @@ export default {
 					return jsonResponse({ error: '缺少 url 或 mime' }, 400);
 				}
 
-				// MIME 白名单校验
+				// MIME 白名单校验：仅允许图片、视频、压缩包
 				const allowedMimes = [
-					'image/', 'video/', 'audio/',
-					'text/plain', 'text/html', 'text/markdown',
-					'application/pdf', 'application/zip', 'application/x-zip-compressed',
+					'image/', 'video/',
+					'application/zip', 'application/x-zip-compressed',
 					'application/x-rar-compressed', 'application/x-7z-compressed',
-					'application/msword',
-					'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-					'application/vnd.ms-excel',
-					'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-					'application/vnd.ms-powerpoint',
-					'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+					'application/gzip', 'application/x-gzip', 'application/x-tar',
 				];
 				const isAllowed = allowedMimes.some(prefix => body.mime.startsWith(prefix));
 				if (!isAllowed) {

@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { useConfig } from '@/hooks/use-config';
 import { apiFetch, API_BASE, formatDate, getSecurityHeaders, type Category, type Post } from '@/lib/api';
 import { getToken, getUser } from '@/lib/auth';
-import { attachFancybox, highlightCodeBlocks, initVideoPosters, renderMarkdownToHtml, resolveMediaUrls, resolveR2Url } from '@/lib/markdown';
+import { attachFancybox, batchGetMedia, getCachedMedia, highlightCodeBlocks, initVideoPosters, renderMarkdownToHtml, resolveMediaUrls, resolveR2Url } from '@/lib/markdown';
 import { uploadMedia, generateVideoThumbnail, attachMediaToPost } from '@/lib/media';
 import { getFirstVideoUrl } from '@/lib/video-thumbnail';
 import { VideoThumbnail } from '@/components/video-thumbnail';
@@ -44,6 +44,7 @@ export function IndexPage() {
 	const [createError, setCreateError] = React.useState('');
 	const [uploadProgress, setUploadProgress] = React.useState<number | null>(null);
 	const [uploadError, setUploadError] = React.useState('');
+	const [mediaCovers, setMediaCovers] = React.useState<Record<string, string>>({});
 
 	// 编辑器增强: 视频/网盘对话框
 	const [videoDialogOpen, setVideoDialogOpen] = React.useState(false);
@@ -441,6 +442,39 @@ export function IndexPage() {
 		fetchPosts(0);
 	}, [fetchPosts]);
 
+	// 帖子列表加载后解析 !MEDIA 标记，提取封面图
+	React.useEffect(() => {
+		if (!posts.length) return;
+		const ids = new Set<string>();
+		const postMediaIds: Record<string, string[]> = {};
+		for (const post of posts) {
+			const matches = (post.content || '').match(/!MEDIA\(([a-zA-Z0-9_-]+)\)/g);
+			if (matches) {
+				postMediaIds[post.id] = matches.map(m => m.replace(/!MEDIA\(|\)/g, ''));
+				postMediaIds[post.id].forEach(id => ids.add(id));
+			}
+		}
+		if (ids.size === 0) return;
+		batchGetMedia(Array.from(ids)).then(() => {
+			const newCovers: Record<string, string> = {};
+			for (const [postId, mediaIds] of Object.entries(postMediaIds)) {
+				for (const id of mediaIds) {
+					const media = getCachedMedia(id);
+					if (!media) continue;
+					if (media.media_type === 'image') {
+						newCovers[postId] = media.url;
+						break;
+					}
+					if (media.media_type === 'video' && media.thumbnail) {
+						newCovers[postId] = media.thumbnail;
+						break;
+					}
+				}
+			}
+			setMediaCovers(newCovers);
+		});
+	}, [posts]);
+
 	React.useEffect(() => {
 		const params = new URLSearchParams(window.location.search);
 		if (params.get('verified') === 'true') {
@@ -802,17 +836,43 @@ export function IndexPage() {
 								</div>
 							</div>
 								{user?.role === 'admin' ? (
-		// 文件上传（图片/视频: Luban压缩 + WebP转码 + 视频缩略图）
+		// 文件上传（图片/视频/压缩包）
 		<div className="space-y-2">
 			<label className="block text-sm font-medium text-muted-foreground">上传文件</label>
+			<div className="text-xs text-muted-foreground mb-1">
+				支持：图片(JPG/PNG/GIF/WebP ≤10MB)、视频(MP4/WebM/MOV ≤500MB)、压缩包(ZIP/RAR/7z ≤300MB)。TXT/DOC/PDF 请打包后上传。
+			</div>
 			<input
 				type="file"
-				accept="*"
+				accept=".jpg,.jpeg,.png,.gif,.webp,.bmp,.mp4,.webm,.mov,.avi,.zip,.rar,.7z,.tar,.gz,.tgz"
 				className="block w-full text-sm"
 				onChange={async (e) => {
 					const file = e.target.files && e.target.files[0];
 					if (!file) return;
 					setUploadError('');
+
+					// 客户端格式校验
+					const allowedExt = /\.(jpg|jpeg|png|gif|webp|bmp|mp4|webm|mov|avi|zip|rar|7z|tar|gz|tgz)$/i;
+					if (!allowedExt.test(file.name)) {
+						setUploadError('不支持的文件格式。仅允许：图片(JPG/PNG/GIF/WebP)、视频(MP4/WebM/MOV)、压缩包(ZIP/RAR/7z/tar.gz)。TXT/DOC/PDF 等请打包后上传。');
+						e.target.value = '';
+						return;
+					}
+					if (file.type.startsWith('image/') && file.size > 10 * 1024 * 1024) {
+						setUploadError(`图片大小不能超过 10MB（当前 ${(file.size / 1024 / 1024).toFixed(1)}MB）`);
+						e.target.value = '';
+						return;
+					}
+					if (file.type.startsWith('video/') && file.size > 500 * 1024 * 1024) {
+						setUploadError(`视频大小不能超过 500MB（当前 ${(file.size / 1024 / 1024).toFixed(1)}MB）`);
+						e.target.value = '';
+						return;
+					}
+					if (!file.type.startsWith('image/') && !file.type.startsWith('video/') && file.size > 300 * 1024 * 1024) {
+						setUploadError(`压缩包大小不能超过 300MB（当前 ${(file.size / 1024 / 1024).toFixed(1)}MB）`);
+						e.target.value = '';
+						return;
+					}
 
 					// 视频不压缩，直接上传
 					let processedFile = file;
@@ -962,7 +1022,7 @@ export function IndexPage() {
 						</Card>
 					) : (
 						posts.map((p) => {
-							const coverUrl = getCoverImageUrl(p.content || '');
+							const coverUrl = getCoverImageUrl(p.content || '') || mediaCovers[p.id] || '';
 							// 没有图片时检测视频，截帧作为缩略图
 							let videoUrl: string | null = null;
 							if (!coverUrl) {

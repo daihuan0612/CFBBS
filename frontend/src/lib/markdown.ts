@@ -105,6 +105,13 @@ export function renderMarkdownToHtml(markdown: string, r2PublicUrl?: string) {
 export { resolveR2Url };
 
 /**
+ * 获取缓存的媒体信息
+ */
+export function getCachedMedia(id: string) {
+	return mediaCache.get(id);
+}
+
+/**
  * 批量获取媒体文件信息（内存缓存 + localStorage 持久化）
  */
 const mediaCache = new Map<string, { url: string; media_type: string; mime: string; width?: number | null; height?: number | null; thumbnail?: string | null }>();
@@ -134,7 +141,7 @@ function setLocalMediaCache(id: string, data: any) {
 	}
 }
 
-async function batchGetMedia(ids: string[]): Promise<void> {
+export async function batchGetMedia(ids: string[]): Promise<void> {
 	const uncached = ids.filter(id => {
 		if (mediaCache.has(id)) return false;
 		const local = getLocalMediaCache(id);
