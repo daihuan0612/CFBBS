@@ -210,7 +210,19 @@ export async function resolveMediaUrls(root: HTMLElement | null) {
 			}
 			case 'video': {
 				const poster = media.thumbnail ? ` poster="${media.thumbnail}"` : '';
-				el.outerHTML = `<video controls preload="metadata"${poster} style="display:block;margin:1em auto;max-width:100%;max-height:70vh;border-radius:0.5rem"><source src="${media.url}"></video>`;
+				const filename = media.url.split('/').pop() || 'video.mp4';
+				el.outerHTML = `<div class="video-wrapper" style="text-align:center;margin:1em 0" data-video-url="${media.url}" data-filename="${filename}">
+					<video controls preload="metadata"${poster} style="display:block;margin:0 auto;max-width:100%;max-height:70vh;border-radius:0.5rem">
+						<source src="${media.url}">
+					</video>
+					<div class="video-fallback" style="display:none;margin-top:0.5em;padding:1em;background:var(--bg-card,#f5f5f5);border-radius:0.5rem;border:1px solid var(--border-color,#ddd)">
+						<p style="margin:0 0 0.5em;font-size:14px;color:var(--text-muted,#666)">此视频编码浏览器不支持播放，请下载后观看</p>
+						<a href="${media.url}" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:6px;padding:0.5em 1.2em;background:var(--link-color,#2563eb);color:#fff;border-radius:0.375rem;text-decoration:none;font-size:14px">
+							<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+							下载 ${filename}
+						</a>
+					</div>
+				</div>`;
 				break;
 			}
 			case 'audio': {
@@ -242,6 +254,33 @@ export function initVideoPosters(root: HTMLElement | null) {
 	if (!root) return;
 	const videos = root.querySelectorAll<HTMLVideoElement>('video');
 	videos.forEach((video) => {
+		// 获取父级 wrapper，用于显示下载回退
+		const wrapper = video.closest<HTMLElement>('.video-wrapper');
+		const fallback = wrapper?.querySelector<HTMLElement>('.video-fallback');
+		const videoUrl = wrapper?.dataset.videoUrl;
+
+		// 主动检测浏览器能否解码
+		if (videoUrl && video.canPlayType) {
+			// 取扩展名判断 MIME
+			const ext = videoUrl.split('?')[0].split('.').pop()?.toLowerCase();
+			const mime = ext === 'mp4' ? 'video/mp4' :
+				ext === 'webm' ? 'video/webm' :
+				ext === 'mov' ? 'video/quicktime' :
+				ext === 'ogg' ? 'video/ogg' : '';
+			if (mime && video.canPlayType(mime) === '') {
+				// 浏览器完全不支持此格式，直接显示 fallback
+				if (video.parentElement) video.style.display = 'none';
+				if (fallback) fallback.style.display = '';
+				return;
+			}
+		}
+
+		// 监听运行时播放错误（比如 HEVC 解码失败）
+		video.addEventListener('error', () => {
+			if (video.parentElement) video.style.display = 'none';
+			if (fallback) fallback.style.display = '';
+		}, { once: true });
+
 		if (video.dataset.posterLoaded) return;
 		video.dataset.posterLoaded = 'true';
 
