@@ -2437,7 +2437,7 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 
 				// Validate Lengths
 				if (title.length > 60) return jsonResponse({ error: 'Title too long (Max 60 chars)' }, 400);
-				if (content.length > 3000) return jsonResponse({ error: 'Content too long (Max 3000 chars)' }, 400);
+				if (content.length > 65535) return jsonResponse({ error: 'Content too long (Max 65535 chars)' }, 400);
 				if (hasControlCharacters(title) || hasControlCharacters(content)) return jsonResponse({ error: 'Title or content contains invalid control characters' }, 400);
 
 				// Validate Category if provided
@@ -2536,7 +2536,7 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 				const { content, parent_id, 'cf-turnstile-response': turnstileToken } = body;
 
 				if (!content || !content.trim()) return jsonResponse({ error: '评论内容不能为空' }, 400);
-				if (content.length > 3000) return jsonResponse({ error: '评论过长 (最多 3000 字符)' }, 400);
+				if (content.length > 65535) return jsonResponse({ error: '评论过长 (最多 65535 字符)' }, 400);
 
 				// Verify Turnstile if enabled
 				const ip = request.headers.get('CF-Connecting-IP') || '127.0.0.1';
@@ -2690,8 +2690,7 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 
 				// Validate Lengths
 				if (title.length > 60) return jsonResponse({ error: 'Title too long (Max 60 chars)' }, 400);
-				if (content.length > 3000) return jsonResponse({ error: 'Content too long (Max 3000 chars)' }, 400);
-
+				if (content.length > 65535) return jsonResponse({ error: 'Content too long (Max 65535 chars)' }, 400);
 				if (hasControlCharacters(title) || hasControlCharacters(content)) return jsonResponse({ error: 'Title or content contains invalid control characters' }, 400);
 
 				// 内容直接存储，前端 DOMPurify 负责安全过滤

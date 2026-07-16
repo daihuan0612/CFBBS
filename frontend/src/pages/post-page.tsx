@@ -254,7 +254,7 @@ export function PostPage() {
 		setCommentError('');
 		const err = validateText(newComment, '评论');
 		if (err) return setCommentError(err);
-		if (newComment.length > 3000) return setCommentError('评论过长 (最多 3000 字符)');
+		if (newComment.length > 65535) return setCommentError('评论过长 (最多 65535 字符)');
 		if (turnstileActive && !turnstileToken) return setCommentError('请完成验证码验证');
 
 		setCommentLoading(true);
@@ -353,7 +353,7 @@ export function PostPage() {
 		const contentErr = validateText(editContent, '内容');
 		if (contentErr) return setEditError(contentErr);
 		if (editTitle.length > 30) return setEditError('标题过长 (最多 30 字符)');
-		if (editContent.length > 3000) return setEditError('内容过长 (最多 3000 字符)');
+		if (editContent.length > 65535) return setEditError('内容过长 (最多 65535 字符)');
 
 		setEditLoading(true);
 		try {

@@ -622,7 +622,7 @@ export function IndexPage() {
 		const contentErr = validateText(newContent, '内容');
 		if (contentErr) return setCreateError(contentErr);
 		if (newTitle.length > 60) return setCreateError('标题过长 (最多 60 字符)');
-		if (newContent.length > 3000) return setCreateError('内容过长 (最多 3000 字符)');
+		if (newContent.length > 65535) return setCreateError('内容过长 (最多 65535 字符)');
 		if (turnstileActive && !turnstileToken) return setCreateError('请完成验证码验证');
 
 		setCreateLoading(true);
