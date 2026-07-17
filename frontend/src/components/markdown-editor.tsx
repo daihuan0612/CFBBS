@@ -15,8 +15,6 @@ import { renderMarkdownToHtml, resolveMediaUrls } from '@/lib/markdown';
 
 // 上传文件类型与大小限制
 const ALLOWED_EXTENSIONS = /\.(jpg|jpeg|png|gif|webp|bmp|mp4|webm|mov|avi|zip|rar|7z|tar|gz|tgz)$/i;
-const ALLOWED_MIME_PREFIXES = ['image/', 'video/', 'application/zip', 'application/x-zip', 'application/x-rar', 'application/x-7z', 'application/gzip', 'application/x-tar'];
-const ARCHIVE_MIMES = ['application/zip', 'application/x-zip-compressed', 'application/x-rar-compressed', 'application/x-7z-compressed', 'application/gzip', 'application/x-gzip', 'application/x-tar'];
 
 function validateFile(file: File, maxUploadSizeMb: number): string | null {
 	const sizeLimit = maxUploadSizeMb * 1024 * 1024;
