@@ -72,7 +72,178 @@ export async function uploadMedia(
 }
 
 /**
+ * 分块大小：16MB（Telegram 渠道）
+ * 与 ImgBed 网站前端一致
+ */
+const CHUNK_SIZE = 16 * 1024 * 1024;
+const CHUNK_CONCURRENCY = 3;
+const CHUNK_RETRIES = 3;
+
+/**
+ * 构建 ImgBed 上传基础 URL
+ */
+function imgbedUploadUrl(imgbedDomain: string, imgbedAuthCode: string): string {
+	return `${imgbedDomain}/upload?authCode=${encodeURIComponent(imgbedAuthCode)}&uploadFolder=tucao&autoRetry=false`;
+}
+
+/**
+ * XHR 单次请求封装（FormData）
+ */
+function xhrPost(url: string, formData: FormData, onProgress?: (pct: number) => void): Promise<string> {
+	return new Promise((resolve, reject) => {
+		const xhr = new XMLHttpRequest();
+		xhr.upload.onprogress = (e) => {
+			if (e.lengthComputable && onProgress) {
+				onProgress(Math.round((e.loaded / e.total) * 100));
+			}
+		};
+		xhr.onload = () => {
+			if (xhr.status < 200 || xhr.status >= 300) {
+				reject(new Error(`HTTP ${xhr.status}`));
+				return;
+			}
+			resolve(xhr.responseText);
+		};
+		xhr.onerror = () => reject(new Error('网络错误'));
+		xhr.onabort = () => reject(new Error('已取消'));
+		xhr.open('POST', url);
+		xhr.send(formData);
+	});
+}
+
+/**
+ * 解析 ImgBed 上传响应，提取 src 路径
+ */
+function parseImgBedResponse(responseText: string, context: string): string {
+	const data = JSON.parse(responseText);
+	const srcPath = data[0]?.src;
+	if (!srcPath) {
+		throw new Error(`ImgBed 返回格式异常 (${context}): ` + responseText.slice(0, 200));
+	}
+	return srcPath;
+}
+
+/**
+ * 简单上传（小文件，单次 POST）
+ */
+function simpleUploadToImgBed(
+	file: File,
+	imgbedDomain: string,
+	imgbedAuthCode: string,
+	onProgress?: (percent: number) => void
+): Promise<string> {
+	const url = imgbedUploadUrl(imgbedDomain, imgbedAuthCode);
+	const fd = new FormData();
+	fd.append('file', file);
+	return xhrPost(url, fd, onProgress).then((resp) => {
+		const srcPath = parseImgBedResponse(resp, 'simple');
+		return `${imgbedDomain}${srcPath}`;
+	});
+}
+
+/**
+ * 分块上传（大文件，三步流程）
+ * 与 ImgBed 网站前端逻辑一致
+ */
+async function chunkedUploadToImgBed(
+	file: File,
+	imgbedDomain: string,
+	imgbedAuthCode: string,
+	totalChunks: number,
+	onProgress?: (percent: number) => void
+): Promise<string> {
+	const baseUrl = imgbedUploadUrl(imgbedDomain, imgbedAuthCode);
+	const pad = (n: number) => String(n).padStart(6, '0');
+
+	// ---- Step 1: 初始化分块会话 ----
+	const initFd = new FormData();
+	initFd.append('originalFileName', file.name);
+	initFd.append('originalFileType', file.type);
+	initFd.append('totalChunks', String(totalChunks));
+
+	const initResp = await xhrPost(`${baseUrl}&initChunked=true`, initFd);
+	const initData = JSON.parse(initResp);
+	const uploadId: string = initData.uploadId;
+	if (!uploadId) throw new Error('ImgBed 初始化分块失败: ' + initResp.slice(0, 200));
+
+	// ---- Step 2: 并发上传分块 ----
+	const chunkProgress: number[] = new Array(totalChunks).fill(0);
+	let hasError = false;
+	let errorMsg = '';
+	let currentIdx = 0;
+
+	const uploadOneChunk = async (): Promise<void> => {
+		while (currentIdx < totalChunks && !hasError) {
+			const idx = currentIdx++;
+			const start = idx * CHUNK_SIZE;
+			const end = Math.min(start + CHUNK_SIZE, file.size);
+			const blob = file.slice(start, end);
+
+			const fd = new FormData();
+			fd.append('file', blob, `${file.name}.part${pad(idx)}`);
+			fd.append('chunkIndex', String(idx));
+			fd.append('totalChunks', String(totalChunks));
+			fd.append('uploadId', uploadId);
+			fd.append('originalFileName', file.name);
+			fd.append('originalFileType', file.type);
+
+			let success = false;
+			for (let retry = 0; retry < CHUNK_RETRIES; retry++) {
+				try {
+					await xhrPost(`${baseUrl}&chunked=true`, fd, (pct) => {
+						chunkProgress[idx] = pct;
+						const overall = Math.round(
+							chunkProgress.reduce((a, b) => a + b, 0) / totalChunks
+						);
+						onProgress?.(overall);
+					});
+					chunkProgress[idx] = 100;
+					success = true;
+					break;
+				} catch (e: any) {
+					if (retry >= CHUNK_RETRIES - 1) {
+						hasError = true;
+						errorMsg = `分块 ${idx + 1}/${totalChunks} 上传失败`;
+						throw new Error(errorMsg);
+					}
+					await new Promise((r) => setTimeout(r, 2000 * (retry + 1)));
+				}
+			}
+			if (success) {
+				const overall = Math.round(
+					chunkProgress.reduce((a, b) => a + b, 0) / totalChunks
+				);
+				onProgress?.(overall);
+			}
+		}
+	};
+
+	const workers: Promise<void>[] = [];
+	for (let i = 0; i < CHUNK_CONCURRENCY; i++) {
+		workers.push(uploadOneChunk());
+	}
+	await Promise.all(workers);
+
+	if (hasError) throw new Error(errorMsg);
+
+	// ---- Step 3: 合并分块 ----
+	onProgress?.(95);
+	const mergeFd = new FormData();
+	mergeFd.append('uploadId', uploadId);
+	mergeFd.append('totalChunks', String(totalChunks));
+	mergeFd.append('originalFileName', file.name);
+	mergeFd.append('originalFileType', file.type);
+
+	const mergeResp = await xhrPost(`${baseUrl}&chunked=true&merge=true`, mergeFd);
+	onProgress?.(100);
+
+	const srcPath = parseImgBedResponse(mergeResp, 'merge');
+	return `${imgbedDomain}${srcPath}`;
+}
+
+/**
  * 使用 XHR 上传文件到 ImgBed，支持进度回调
+ * 大文件(>16MB)自动走分块上传
  */
 function uploadToImgBed(
 	file: File,
@@ -80,42 +251,11 @@ function uploadToImgBed(
 	imgbedAuthCode: string,
 	onProgress?: (percent: number) => void
 ): Promise<string> {
-	return new Promise((resolve, reject) => {
-		const xhr = new XMLHttpRequest();
-		const formData = new FormData();
-		formData.append('file', file);
-
-		xhr.upload.onprogress = (e) => {
-			if (e.lengthComputable && onProgress) {
-				onProgress(Math.round((e.loaded / e.total) * 100));
-			}
-		};
-
-		xhr.onload = () => {
-			if (xhr.status < 200 || xhr.status >= 300) {
-				reject(new Error(`ImgBed 上传失败 (${xhr.status})`));
-				return;
-			}
-			try {
-				const uploadData = JSON.parse(xhr.responseText);
-				const srcPath = uploadData[0]?.src;
-				if (!srcPath) {
-					reject(new Error('ImgBed 返回格式异常: ' + xhr.responseText.slice(0, 200)));
-					return;
-				}
-				resolve(`${imgbedDomain}${srcPath}`);
-			} catch {
-				reject(new Error('ImgBed 返回格式异常: ' + xhr.responseText.slice(0, 200)));
-			}
-		};
-
-		xhr.onerror = () => reject(new Error('网络错误，上传失败'));
-		xhr.onabort = () => reject(new Error('上传已取消'));
-
-		const uploadUrl = `${imgbedDomain}/upload?authCode=${encodeURIComponent(imgbedAuthCode)}&uploadFolder=tucao&autoRetry=false`;
-		xhr.open('POST', uploadUrl);
-		xhr.send(formData);
-	});
+	const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+	if (totalChunks <= 1) {
+		return simpleUploadToImgBed(file, imgbedDomain, imgbedAuthCode, onProgress);
+	}
+	return chunkedUploadToImgBed(file, imgbedDomain, imgbedAuthCode, totalChunks, onProgress);
 }
 
 /**
