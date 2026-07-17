@@ -907,12 +907,17 @@ export function IndexPage() {
 								</div>
 							</div>
 								{user ? (
-		// 文件上传（图片/视频/压缩包）
+		{/* 文件上传（图片/视频/压缩包） */}
 		<div className="space-y-2">
 			<label className="block text-sm font-medium text-muted-foreground">上传文件</label>
-			<div className="text-xs text-muted-foreground mb-1">
-				支持：图片(JPG/PNG/GIF/WebP ≤10MB)、视频(MP4/WebM/MOV ≤500MB)、压缩包(ZIP/RAR/7z ≤300MB)。TXT/DOC/PDF 请打包后上传。
-			</div>
+			{(() => {
+				const maxMB = config?.max_upload_size_mb || 500;
+				return (
+					<div className="text-xs text-muted-foreground mb-1">
+						支持：图片(JPG/PNG/GIF/WebP)、视频(MP4/WebM/MOV)、压缩包(ZIP/RAR/7z)。统一限制 ≤{maxMB}MB。TXT/DOC/PDF 请打包后上传。
+					</div>
+				);
+			})()}
 			<input
 				type="file"
 				accept=".jpg,.jpeg,.png,.gif,.webp,.bmp,.mp4,.webm,.mov,.avi,.zip,.rar,.7z,.tar,.gz,.tgz"
@@ -922,6 +927,9 @@ export function IndexPage() {
 					if (!file) return;
 					setUploadError('');
 
+					const maxUploadSizeMb = config?.max_upload_size_mb || 500;
+					const sizeLimit = maxUploadSizeMb * 1024 * 1024;
+
 					// 客户端格式校验
 					const allowedExt = /\.(jpg|jpeg|png|gif|webp|bmp|mp4|webm|mov|avi|zip|rar|7z|tar|gz|tgz)$/i;
 					if (!allowedExt.test(file.name)) {
@@ -929,18 +937,8 @@ export function IndexPage() {
 						e.target.value = '';
 						return;
 					}
-					if (file.type.startsWith('image/') && file.size > 10 * 1024 * 1024) {
-						setUploadError(`图片大小不能超过 10MB（当前 ${(file.size / 1024 / 1024).toFixed(1)}MB）`);
-						e.target.value = '';
-						return;
-					}
-					if (file.type.startsWith('video/') && file.size > 500 * 1024 * 1024) {
-						setUploadError(`视频大小不能超过 500MB（当前 ${(file.size / 1024 / 1024).toFixed(1)}MB）`);
-						e.target.value = '';
-						return;
-					}
-					if (!file.type.startsWith('image/') && !file.type.startsWith('video/') && file.size > 300 * 1024 * 1024) {
-						setUploadError(`压缩包大小不能超过 300MB（当前 ${(file.size / 1024 / 1024).toFixed(1)}MB）`);
+					if (file.size > sizeLimit) {
+						setUploadError(`文件大小不能超过 ${maxUploadSizeMb}MB（当前 ${(file.size / 1024 / 1024).toFixed(1)}MB）`);
 						e.target.value = '';
 						return;
 					}

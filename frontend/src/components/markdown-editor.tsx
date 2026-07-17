@@ -14,36 +14,19 @@ import { uploadMedia, generateVideoThumbnail } from '@/lib/media';
 import { renderMarkdownToHtml, resolveMediaUrls } from '@/lib/markdown';
 
 // 上传文件类型与大小限制
-const UPLOAD_CONFIG = {
-	image: { mimePrefix: 'image/', maxSize: 10 * 1024 * 1024, label: '图片' },
-	video: { mimePrefix: 'video/', maxSize: 500 * 1024 * 1024, label: '视频' },
-	archive: { mimePrefix: 'application/', maxSize: 300 * 1024 * 1024, label: '压缩包' },
-};
 const ALLOWED_EXTENSIONS = /\.(jpg|jpeg|png|gif|webp|bmp|mp4|webm|mov|avi|zip|rar|7z|tar|gz|tgz)$/i;
 const ALLOWED_MIME_PREFIXES = ['image/', 'video/', 'application/zip', 'application/x-zip', 'application/x-rar', 'application/x-7z', 'application/gzip', 'application/x-tar'];
 const ARCHIVE_MIMES = ['application/zip', 'application/x-zip-compressed', 'application/x-rar-compressed', 'application/x-7z-compressed', 'application/gzip', 'application/x-gzip', 'application/x-tar'];
 
-function validateFile(file: File): string | null {
+function validateFile(file: File, maxUploadSizeMb: number): string | null {
+	const sizeLimit = maxUploadSizeMb * 1024 * 1024;
 	// 扩展名校验（兜底）
 	if (!ALLOWED_EXTENSIONS.test(file.name)) {
 		return '不支持的文件格式。仅允许：图片(JPG/PNG/GIF/WebP)、视频(MP4/WebM/MOV)、压缩包(ZIP/RAR/7z/tar.gz)。TXT/DOC/PDF 等请打包后上传。';
 	}
-	// MIME 校验
-	const isAllowedMime = ALLOWED_MIME_PREFIXES.some(p => file.type.startsWith(p) || file.type.startsWith(p.toLowerCase()));
-	const isArchive = ARCHIVE_MIMES.some(m => file.type.startsWith(m));
-	if (!isAllowedMime && !isArchive) {
-		// 如果 MIME 不匹配但扩展名匹配（某些浏览器对压缩包不报 MIME），放行
-		// 但 TXT/DOC/PDF 等扩展名已被 ALLOWED_EXTENSIONS 拦截
-	}
-	// 大小校验
-	if (file.type.startsWith('image/') && file.size > UPLOAD_CONFIG.image.maxSize) {
-		return `图片大小不能超过 10MB（当前 ${(file.size / 1024 / 1024).toFixed(1)}MB）`;
-	}
-	if (file.type.startsWith('video/') && file.size > UPLOAD_CONFIG.video.maxSize) {
-		return `视频大小不能超过 500MB（当前 ${(file.size / 1024 / 1024).toFixed(1)}MB）`;
-	}
-	if (!file.type.startsWith('image/') && !file.type.startsWith('video/') && file.size > UPLOAD_CONFIG.archive.maxSize) {
-		return `压缩包大小不能超过 300MB（当前 ${(file.size / 1024 / 1024).toFixed(1)}MB）`;
+	// 大小校验（统一限制）
+	if (file.size > sizeLimit) {
+		return `文件大小不能超过 ${maxUploadSizeMb}MB（当前 ${(file.size / 1024 / 1024).toFixed(1)}MB）`;
 	}
 	return null;
 }
@@ -56,12 +39,13 @@ interface MarkdownEditorProps {
 	userRole?: string;
 	imgbedDomain?: string;
 	imgbedAuthCode?: string;
+	maxUploadSizeMb?: number;
 }
 
 /**
  * CodeMirror 6 + Markdown Toolbar editor for CFBBS.
  */
-export function MarkdownEditor({ content, setContent, placeholder: ph, r2PublicUrl, userRole, imgbedDomain, imgbedAuthCode }: MarkdownEditorProps) {
+export function MarkdownEditor({ content, setContent, placeholder: ph, r2PublicUrl, userRole, imgbedDomain, imgbedAuthCode, maxUploadSizeMb = 500 }: MarkdownEditorProps) {
 	const editorRef = useRef<HTMLDivElement>(null);
 	const viewRef = useRef<EditorView | null>(null);
 	const [isDark, setIsDark] = React.useState(false);
@@ -402,7 +386,7 @@ export function MarkdownEditor({ content, setContent, placeholder: ph, r2PublicU
 		if (!file) return;
 		setUploadError(null);
 		// 客户端格式校验，直接拦截
-		const errorMsg = validateFile(file);
+		const errorMsg = validateFile(file, maxUploadSizeMb);
 		if (errorMsg) {
 			setUploadError(errorMsg);
 			setUploadProgress(null);
@@ -539,8 +523,7 @@ export function MarkdownEditor({ content, setContent, placeholder: ph, r2PublicU
 			{/* 上传格式提示 */}
 			{imgbedDomain && imgbedAuthCode ? (
 				<div className="text-xs text-muted-foreground leading-relaxed">
-					支持上传：图片(JPG/PNG/GIF/WebP ≤10MB)、视频(MP4/WebM/MOV ≤500MB)、压缩包(ZIP/RAR/7z ≤300MB)。
-					TXT/DOC/PDF 等其他格式请打包后上传。
+					支持上传：图片(JPG/PNG/GIF/WebP)、视频(MP4/WebM/MOV)、压缩包(ZIP/RAR/7z)。统一限制 ≤{maxUploadSizeMb}MB。TXT/DOC/PDF 等其他格式请打包后上传。
 				</div>
 			) : null}
 

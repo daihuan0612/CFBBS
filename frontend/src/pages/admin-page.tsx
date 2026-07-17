@@ -40,7 +40,8 @@ export function AdminPage() {
 		feature_bookmarks: true,
 		feature_comments: true,
 		feature_posts: true,
-		watermark_enabled: true
+		watermark_enabled: true,
+		max_upload_size_mb: 500
 	});
 
 	const [newCategoryName, setNewCategoryName] = React.useState('');
@@ -109,7 +110,8 @@ export function AdminPage() {
 				feature_bookmarks: settings.feature_bookmarks !== false,
 				feature_comments: settings.feature_comments !== false,
 				feature_posts: settings.feature_posts !== false,
-				watermark_enabled: settings.watermark_enabled !== false
+				watermark_enabled: settings.watermark_enabled !== false,
+				max_upload_size_mb: settings.max_upload_size_mb ?? 500
 			}));
 		} catch (e: any) {
 			setError(String(e?.message || e));
@@ -427,6 +429,15 @@ export function AdminPage() {
 											onChange={(e) => setSystemSettings((s) => ({ ...s, notify_on_manual_verify: e.target.checked }))} />
 										手动验证通过时通知用户
 									</label>
+								</div>
+								<Separator />
+								<div className="grid gap-3 sm:grid-cols-2">
+									<div className="space-y-2">
+										<Label className="text-sm">上传文件大小限制（MB）</Label>
+										<Input type="number" min={1} max={9999} value={systemSettings.max_upload_size_mb}
+											onChange={(e) => setSystemSettings((s) => ({ ...s, max_upload_size_mb: parseInt(e.target.value) || 500 }))} />
+										<p className="text-xs text-muted-foreground">所有类型文件（图片/视频/压缩包）统一限制。默认 500MB。</p>
+									</div>
 								</div>
 								<Button onClick={saveSettings} disabled={savingSettings}>{savingSettings ? '保存中...' : '保存设置'}</Button>
 							</CardContent>

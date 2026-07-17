@@ -465,7 +465,8 @@ export default {
 			`INSERT OR IGNORE INTO settings (key, value) VALUES ('notify_on_username_change', '1');`,
 			`INSERT OR IGNORE INTO settings (key, value) VALUES ('notify_on_avatar_change', '1');`,
 			`INSERT OR IGNORE INTO settings (key, value) VALUES ('notify_on_manual_verify', '1');`,
-			`INSERT OR IGNORE INTO settings (key, value) VALUES ('notify_on_comment', '1');`
+			`INSERT OR IGNORE INTO settings (key, value) VALUES ('notify_on_comment', '1');`,
+			`INSERT OR IGNORE INTO settings (key, value) VALUES ('max_upload_size_mb', '500');`
 			];
 			for (const stmt of stmts) {
 				try {
@@ -595,10 +596,12 @@ export default {
 						feature_likes: true, feature_bookmarks: true,
 						feature_comments: true, feature_posts: true, watermark_enabled: true
 					};
+					let maxUploadSizeMb = 500;
 					if (settingsAll.results) {
 						for (const row of settingsAll.results) {
 							const key = row.key as string;
 							if (key in featureFlags) featureFlags[key] = row.value === '1';
+							if (key === 'max_upload_size_mb') maxUploadSizeMb = parseInt(row.value as string) || 500;
 						}
 					}
 					return {
@@ -608,6 +611,7 @@ export default {
 						r2_public_url: (env as any).R2_PUBLIC_BASE_URL || '',
 						imgbed_domain: (env as any).IMGBED_DOMAIN || '',
 						imgbed_auth_code: (env as any).IMGBED_AUTH_CODE || '',
+						max_upload_size_mb: maxUploadSizeMb,
 						...featureFlags
 					};
 				});
@@ -636,13 +640,17 @@ export default {
 					feature_bookmarks: true,
 					feature_comments: true,
 					feature_posts: true,
-					watermark_enabled: true
+					watermark_enabled: true,
+					max_upload_size_mb: 500
 				};
 
 				if (settings.results) {
 					for (const row of settings.results) {
 						config[row.key as string] = row.value === '1';
 					}
+					// 非布尔值需要特殊处理
+					const maxRow = settings.results.find((r: any) => r.key === 'max_upload_size_mb');
+					if (maxRow) config.max_upload_size_mb = parseInt(maxRow.value as string) || 500;
 				}
 
 				return jsonResponse(config, 200, 'no-store, private');
@@ -659,7 +667,7 @@ export default {
 
 				const body = await request.json() as any;
 				const { turnstile_enabled, notify_on_user_delete, notify_on_username_change, notify_on_avatar_change, notify_on_manual_verify, notify_on_comment,
-					invite_only, encrypted_attachments_enabled, feature_likes, feature_bookmarks, feature_comments, feature_posts, watermark_enabled } = body;
+					invite_only, encrypted_attachments_enabled, feature_likes, feature_bookmarks, feature_comments, feature_posts, watermark_enabled, max_upload_size_mb } = body;
 
 				const stmt = env.cforum_db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)");
 				const batch = [];
@@ -677,6 +685,7 @@ export default {
 				if (feature_comments !== undefined) batch.push(stmt.bind('feature_comments', feature_comments ? '1' : '0'));
 				if (feature_posts !== undefined) batch.push(stmt.bind('feature_posts', feature_posts ? '1' : '0'));
 				if (watermark_enabled !== undefined) batch.push(stmt.bind('watermark_enabled', watermark_enabled ? '1' : '0'));
+				if (max_upload_size_mb !== undefined) batch.push(stmt.bind('max_upload_size_mb', String(max_upload_size_mb)));
 
 				if (batch.length > 0) await env.cforum_db.batch(batch);
 
@@ -801,12 +810,12 @@ export default {
 					return jsonResponse({ error: '不支持的文件类型' }, 400);
 				}
 
-				// 大小限制
-				const sizeLimit = body.mime.startsWith('image/') ? 10 * 1024 * 1024
-					: body.mime.startsWith('video/') ? 500 * 1024 * 1024
-					: 300 * 1024 * 1024;
+				// 大小限制（从系统设置读取）
+				const maxSizeSetting = await env.cforum_db.prepare("SELECT value FROM settings WHERE key = 'max_upload_size_mb'").first<DBSetting>();
+				const maxUploadMB = parseInt(maxSizeSetting?.value || '500');
+				const sizeLimit = maxUploadMB * 1024 * 1024;
 				if (body.size > sizeLimit) {
-					return jsonResponse({ error: '文件大小超过限制' }, 400);
+					return jsonResponse({ error: `文件大小超过限制（最大 ${maxUploadMB}MB）` }, 400);
 				}
 
 				const mediaType = body.mime.startsWith('image/') ? 'image'

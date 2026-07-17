@@ -16,6 +16,7 @@ export type ForumConfig = {
 	feature_comments?: boolean;
 	feature_posts?: boolean;
 	watermark_enabled?: boolean;
+	max_upload_size_mb?: number;
 };
 
 export type Category = {
