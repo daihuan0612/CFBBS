@@ -907,7 +907,7 @@ export function IndexPage() {
 								</div>
 							</div>
 								{user ? (
-		{/* 文件上传（图片/视频/压缩包） */}
+		// 文件上传（图片/视频/压缩包）
 		<div className="space-y-2">
 			<label className="block text-sm font-medium text-muted-foreground">上传文件</label>
 			{(() => {
