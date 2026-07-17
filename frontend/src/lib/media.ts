@@ -242,8 +242,15 @@ async function chunkedUploadToImgBed(
 }
 
 /**
+ * 分块上传阈值：85MB
+ * Cloudflare Workers 请求体限制 100MB，留余量
+ * 小于此值直接一次传（更快），超过才走分块
+ */
+const CHUNK_THRESHOLD = 85 * 1024 * 1024;
+
+/**
  * 使用 XHR 上传文件到 ImgBed，支持进度回调
- * 大文件(>16MB)自动走分块上传
+ * 大文件(>85MB)自动走分块上传
  */
 function uploadToImgBed(
 	file: File,
@@ -251,11 +258,10 @@ function uploadToImgBed(
 	imgbedAuthCode: string,
 	onProgress?: (percent: number) => void
 ): Promise<string> {
-	const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
-	if (totalChunks <= 1) {
+	if (file.size <= CHUNK_THRESHOLD) {
 		return simpleUploadToImgBed(file, imgbedDomain, imgbedAuthCode, onProgress);
 	}
-	return chunkedUploadToImgBed(file, imgbedDomain, imgbedAuthCode, totalChunks, onProgress);
+	return chunkedUploadToImgBed(file, imgbedDomain, imgbedAuthCode, Math.ceil(file.size / CHUNK_SIZE), onProgress);
 }
 
 /**
