@@ -1179,9 +1179,13 @@ export default {
 				await env.cforum_db.prepare("UPDATE comments SET content = '该用户已注销' WHERE author_id = ?").bind(user_id).run();
 
 				// Delete all data in a single batch
+				// Order matters for foreign key constraints
 				await env.cforum_db.batch([
+					env.cforum_db.prepare('DELETE FROM media_events WHERE media_id IN (SELECT id FROM media_files WHERE owner_id = ?)').bind(user_id),
+					env.cforum_db.prepare('DELETE FROM post_media WHERE post_id IN (SELECT id FROM posts WHERE author_id = ?)').bind(user_id),
 					env.cforum_db.prepare('DELETE FROM likes WHERE post_id IN (SELECT id FROM posts WHERE author_id = ?)').bind(user_id),
 					env.cforum_db.prepare('DELETE FROM comments WHERE post_id IN (SELECT id FROM posts WHERE author_id = ?)').bind(user_id),
+					env.cforum_db.prepare('DELETE FROM media_files WHERE owner_id = ?').bind(user_id),
 					env.cforum_db.prepare('DELETE FROM likes WHERE user_id = ?').bind(user_id),
 					env.cforum_db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(user_id),
 					env.cforum_db.prepare('DELETE FROM notifications WHERE user_id = ? OR actor_id = ?').bind(user_id, user_id),
@@ -1877,9 +1881,13 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 				await env.cforum_db.prepare("UPDATE comments SET content = '该用户已注销' WHERE author_id = ?").bind(id).run();
 
 				// Batch delete all user data
+				// Order matters for foreign key constraints
 				await env.cforum_db.batch([
+					env.cforum_db.prepare('DELETE FROM media_events WHERE media_id IN (SELECT id FROM media_files WHERE owner_id = ?)').bind(id),
+					env.cforum_db.prepare('DELETE FROM post_media WHERE post_id IN (SELECT id FROM posts WHERE author_id = ?)').bind(id),
 					env.cforum_db.prepare('DELETE FROM likes WHERE post_id IN (SELECT id FROM posts WHERE author_id = ?)').bind(id),
 					env.cforum_db.prepare('DELETE FROM comments WHERE post_id IN (SELECT id FROM posts WHERE author_id = ?)').bind(id),
+					env.cforum_db.prepare('DELETE FROM media_files WHERE owner_id = ?').bind(id),
 					env.cforum_db.prepare('DELETE FROM likes WHERE user_id = ?').bind(id),
 					env.cforum_db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(id),
 					env.cforum_db.prepare('DELETE FROM notifications WHERE user_id = ? OR actor_id = ?').bind(id, id),
