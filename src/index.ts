@@ -1185,6 +1185,7 @@ export default {
 					env.cforum_db.prepare('DELETE FROM post_media WHERE post_id IN (SELECT id FROM posts WHERE author_id = ?)').bind(user_id),
 					env.cforum_db.prepare('DELETE FROM likes WHERE post_id IN (SELECT id FROM posts WHERE author_id = ?)').bind(user_id),
 					env.cforum_db.prepare('DELETE FROM comments WHERE post_id IN (SELECT id FROM posts WHERE author_id = ?)').bind(user_id),
+					env.cforum_db.prepare('DELETE FROM comments WHERE author_id = ?').bind(user_id),
 					env.cforum_db.prepare('DELETE FROM media_files WHERE owner_id = ?').bind(user_id),
 					env.cforum_db.prepare('DELETE FROM likes WHERE user_id = ?').bind(user_id),
 					env.cforum_db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(user_id),
@@ -1194,6 +1195,8 @@ export default {
 					env.cforum_db.prepare('DELETE FROM temp_passwords WHERE user_id = ? OR created_by = ?').bind(user_id, user_id),
 					env.cforum_db.prepare('DELETE FROM invitation_codes WHERE created_by = ? OR used_by = ?').bind(user_id, user_id),
 					env.cforum_db.prepare('DELETE FROM encrypted_attachments WHERE user_id = ?').bind(user_id),
+					env.cforum_db.prepare('DELETE FROM rate_limits WHERE user_id = ?').bind(user_id),
+					env.cforum_db.prepare('DELETE FROM audit_logs WHERE user_id = ?').bind(user_id),
 					env.cforum_db.prepare('DELETE FROM posts WHERE author_id = ?').bind(user_id),
 					env.cforum_db.prepare('DELETE FROM users WHERE id = ?').bind(user_id),
 				]);
@@ -1887,6 +1890,7 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 					env.cforum_db.prepare('DELETE FROM post_media WHERE post_id IN (SELECT id FROM posts WHERE author_id = ?)').bind(id),
 					env.cforum_db.prepare('DELETE FROM likes WHERE post_id IN (SELECT id FROM posts WHERE author_id = ?)').bind(id),
 					env.cforum_db.prepare('DELETE FROM comments WHERE post_id IN (SELECT id FROM posts WHERE author_id = ?)').bind(id),
+					env.cforum_db.prepare('DELETE FROM comments WHERE author_id = ?').bind(id),
 					env.cforum_db.prepare('DELETE FROM media_files WHERE owner_id = ?').bind(id),
 					env.cforum_db.prepare('DELETE FROM likes WHERE user_id = ?').bind(id),
 					env.cforum_db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(id),
@@ -1896,6 +1900,8 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 					env.cforum_db.prepare('DELETE FROM temp_passwords WHERE user_id = ? OR created_by = ?').bind(id, id),
 					env.cforum_db.prepare('DELETE FROM invitation_codes WHERE created_by = ? OR used_by = ?').bind(id, id),
 					env.cforum_db.prepare('DELETE FROM encrypted_attachments WHERE user_id = ?').bind(id),
+					env.cforum_db.prepare('DELETE FROM rate_limits WHERE user_id = ?').bind(id),
+					env.cforum_db.prepare('DELETE FROM audit_logs WHERE user_id = ?').bind(id),
 					env.cforum_db.prepare('DELETE FROM posts WHERE author_id = ?').bind(id),
 					env.cforum_db.prepare('DELETE FROM users WHERE id = ?').bind(id),
 				]);
