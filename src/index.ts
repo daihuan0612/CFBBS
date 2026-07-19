@@ -1181,7 +1181,6 @@ export default {
 				// Delete all data in a single batch
 				// Order matters for foreign key constraints
 				await env.cforum_db.batch([
-					env.cforum_db.prepare('DELETE FROM media_events WHERE media_id IN (SELECT id FROM media_files WHERE owner_id = ?)').bind(user_id),
 					env.cforum_db.prepare('DELETE FROM post_media WHERE post_id IN (SELECT id FROM posts WHERE author_id = ?)').bind(user_id),
 					env.cforum_db.prepare('DELETE FROM likes WHERE post_id IN (SELECT id FROM posts WHERE author_id = ?)').bind(user_id),
 					env.cforum_db.prepare('DELETE FROM comments WHERE post_id IN (SELECT id FROM posts WHERE author_id = ?)').bind(user_id),
@@ -1886,7 +1885,6 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 				// Batch delete all user data
 				// Order matters for foreign key constraints
 				await env.cforum_db.batch([
-					env.cforum_db.prepare('DELETE FROM media_events WHERE media_id IN (SELECT id FROM media_files WHERE owner_id = ?)').bind(id),
 					env.cforum_db.prepare('DELETE FROM post_media WHERE post_id IN (SELECT id FROM posts WHERE author_id = ?)').bind(id),
 					env.cforum_db.prepare('DELETE FROM likes WHERE post_id IN (SELECT id FROM posts WHERE author_id = ?)').bind(id),
 					env.cforum_db.prepare('DELETE FROM comments WHERE post_id IN (SELECT id FROM posts WHERE author_id = ?)').bind(id),
