@@ -88,7 +88,9 @@
 | `ADMIN_EMAIL` | 可选 | 首次部署自动创建管理员 |
 | `ADMIN_PASSWORD` | 可选 | 管理员密码 |
 | `ADMIN_NICKNAME` | 可选 | 管理员昵称（默认 `Admin`） |
-| `IMGBED_AUTH_CODE` | 必填 | 图库上传密码 |
+| `IMGBED_DOMAIN` | 是 | 图床（网盘）域名，如 `https://yun.siyou.qzz.io`，在 Cloudflare Worker 后台设置 |
+| `IMGBED_AUTH_CODE` | 必填 | 图床的上传密码（存在 GitHub Secrets 里，部署时自动写入 Worker，改法见下文"改上传密码"） |
+| `IMGBED_ADMIN_TOKEN` | 可选 | 图床管理 Token（删除帖子时自动删图用） |
 
 ### 方式一：GitHub Actions 自动化部署（推荐）
 
@@ -105,6 +107,7 @@
 | `ADMIN_EMAIL` | 可选 | 管理员邮箱 |
 | `ADMIN_PASSWORD` | 可选 | 管理员密码 |
 | `ADMIN_NICKNAME` | 可选 | 管理员昵称 |
+| `IMGBED_AUTH_CODE` | 是 | 图床的上传密码（部署时自动写入 Worker，改法见下文） |
 
 ### 方式二：本地部署
 
@@ -129,6 +132,49 @@ npx wrangler d1 migrations apply cforum-db --remote
 npm run build:frontend
 npx wrangler deploy
 ```
+
+---
+
+## 部署维护与常见问题
+
+> 详细运维文档见 [部署维护说明.md](docs/部署维护说明.md)
+
+### 怎么重新部署
+
+改动代码（或改配置）后，推送到 GitHub `main` 分支即自动部署，约 1~2 分钟生效。查看是否成功：仓库 → **Actions** 页面，最新一条是绿色对勾 = 成功。
+
+### 改图床上传密码
+
+上传密码存在 GitHub Actions Secrets 里（加密存储，不暴露）：
+
+1. GitHub → 本仓库 → **Settings** → **Secrets and variables** → **Actions**
+2. 点 `IMGBED_AUTH_CODE` 一行 → **Update**，填新密码 → 保存
+3. 随便提交一次（如改一行注释），触发部署
+4. 部署完成即生效。**注意图床那边（CloudFlare-ImgBed）的上传密码也要改成同一个**
+
+### 上传限制（安全设计）
+
+- 论坛上传**只允许**传到图床的 `tucao` 文件夹、**只走** Telegram 渠道（写死在代码里）
+- 登记接口会校验：文件地址的域名必须等于 `IMGBED_DOMAIN`，且路径必须在 `tucao` 目录（兼容 `/tucao/` 和 `/file/tucao/` 两种格式——两者是同一个目录，后者是图床的访问前缀）
+- 其他目录（如 `wallpaper`、`photos`）一律拒绝
+
+### 上传不了排查
+
+1. 部署是否成功（GitHub → Actions）
+2. `IMGBED_AUTH_CODE` 是否在 GitHub Secrets 里
+3. `IMGBED_DOMAIN` 是否在 Cloudflare Worker 后台设置，且和图床域名**完全一致**（不带多余斜杠）
+4. 图床那边的上传密码是否和 `IMGBED_AUTH_CODE` 一致
+5. 浏览器 F12 → 网络，看上传请求的报错
+
+> 提示"仅允许登记本图床 tucao 目录下的文件"：正常不会出现（已兼容图床 `/file/` 前缀）；若出现，多半是 `IMGBED_DOMAIN` 和图床域名对不上。
+
+### 常见问题
+
+**Q：部署失败，提示 secret 相关错误？**
+A：之前有过"Worker 最新版本未部署导致 secret 写入失败"的问题，已修复（改用 `wrangler versions secret put`）。若仍失败，去 Cloudflare 后台 → Workers → `cfbbs`，把"未部署的新版本"部署或删掉，再重试。
+
+**Q：改了代码但没生效？**
+A：确认 push 到了 `main` 分支且 Actions 成功；Cloudflare 有 CDN 缓存，等 1~2 分钟或强制刷新浏览器。
 
 ---
 
