@@ -898,7 +898,7 @@ export default {
 				).bind(
 					mediaId, user.id.toString(), body.url, mediaType, body.mime, body.size,
 					body.width || null, body.height || null, body.duration || null,
-					body.storage || 'imgbed', body.storage_id || null,
+					'telegram', body.storage_id || null, // 论坛媒体仅允许 Telegram 渠道存储
 					now, now
 				).run();
 

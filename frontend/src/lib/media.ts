@@ -99,9 +99,10 @@ const CHUNK_RETRIES = 3;
 
 /**
  * 构建 ImgBed 上传基础 URL
+ * 固定：tucao 目录 + Telegram 渠道（uploadChannel=telegram）
  */
 function imgbedUploadUrl(imgbedDomain: string, imgbedAuthCode: string): string {
-	return `${imgbedDomain}/upload?authCode=${encodeURIComponent(imgbedAuthCode)}&uploadFolder=tucao&autoRetry=false`;
+	return `${imgbedDomain}/upload?authCode=${encodeURIComponent(imgbedAuthCode)}&uploadFolder=tucao&uploadChannel=telegram&autoRetry=false`;
 }
 
 /**
