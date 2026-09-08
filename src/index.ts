@@ -859,7 +859,10 @@ export default {
 					} catch {
 						return jsonResponse({ error: 'url 格式无效' }, 400);
 					}
-					if (parsedUrl.origin !== imgbedDomain.replace(/\/+$/, '') || !parsedUrl.pathname.startsWith('/tucao/')) {
+					const isTucaoPath =
+						parsedUrl.pathname.startsWith('/tucao/') ||
+						parsedUrl.pathname.startsWith('/file/tucao/');
+					if (parsedUrl.origin !== imgbedDomain.replace(/\/+$/, '') || !isTucaoPath) {
 						return jsonResponse({ error: '仅允许登记本图床 tucao 目录下的文件' }, 400);
 					}
 				}
