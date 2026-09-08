@@ -88,6 +88,7 @@
 | `ADMIN_EMAIL` | 可选 | 首次部署自动创建管理员 |
 | `ADMIN_PASSWORD` | 可选 | 管理员密码 |
 | `ADMIN_NICKNAME` | 可选 | 管理员昵称（默认 `Admin`） |
+| `IMGBED_AUTH_CODE` | 必填 | 图库上传密码 |
 
 ### 方式一：GitHub Actions 自动化部署（推荐）
 
