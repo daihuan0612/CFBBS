@@ -11,6 +11,24 @@ export type MediaUploadResult = {
 };
 
 /**
+ * 获取图床上传配置（需登录）。
+ * 上传凭据不再从公开 /api/config 下发，仅在登录后通过鉴权接口获取。
+ */
+export async function fetchImgbedConfig(): Promise<{ domain: string; authCode: string } | null> {
+	try {
+		const res = await fetch(`${API_BASE}/user/upload-config`, {
+			headers: getSecurityHeaders('GET'),
+		});
+		if (!res.ok) return null;
+		const data = await res.json();
+		if (!data?.imgbed_domain || !data?.imgbed_auth_code) return null;
+		return { domain: data.imgbed_domain, authCode: data.imgbed_auth_code };
+	} catch {
+		return null;
+	}
+}
+
+/**
  * 根据文件扩展名推断 MIME 类型（浏览器不报 MIME 时兜底）
  */
 function inferMimeFromExt(filename: string): string {

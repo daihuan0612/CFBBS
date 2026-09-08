@@ -180,6 +180,14 @@ export async function batchGetMedia(ids: string[]): Promise<void> {
 }
 
 /**
+ * 媒体 URL 安全化：仅放行 http(s) 且转义特殊字符，防止存储型 XSS
+ */
+function safeMediaUrl(url: string): string {
+	if (!url || !/^https?:\/\/[^\s"'<>]+$/i.test(url)) return '';
+	return escapeHtml(url);
+}
+
+/**
  * 解析 !MEDIA(id) 占位元素，根据媒体类型渲染 DOM
  * - image → <a data-fancybox><img></a>
  * - video → <video controls poster>
@@ -200,29 +208,34 @@ export async function resolveMediaUrls(root: HTMLElement | null) {
 		const media = mediaCache.get(mediaId);
 		if (!media) return;
 
+		// XSS 防护：URL 必须 http(s) 且经转义，非法则跳过渲染
+		const safeUrl = safeMediaUrl(media.url);
+		if (!safeUrl) return;
+
 		el.classList.remove('media-inline');
 		el.removeAttribute('data-media-id');
 
 		switch (media.media_type) {
 			case 'image': {
-				el.outerHTML = `<a href="${media.url}" data-fancybox="gallery" style="display:block;text-align:center"><img src="${media.url}" alt="" loading="lazy" referrerpolicy="no-referrer" style="display:inline-block;max-width:100%;margin:1em auto" /></a>`;
+				el.outerHTML = `<a href="${safeUrl}" data-fancybox="gallery" style="display:block;text-align:center"><img src="${safeUrl}" alt="" loading="lazy" referrerpolicy="no-referrer" style="display:inline-block;max-width:100%;margin:1em auto" /></a>`;
 				break;
 			}
 			case 'video': {
-				const poster = media.thumbnail ? ` poster="${media.thumbnail}"` : '';
-				el.outerHTML = `<video controls preload="metadata"${poster} style="display:block;margin:1em auto;max-width:100%;max-height:70vh;border-radius:0.5rem"><source src="${media.url}"></video>`;
+				const poster = media.thumbnail && /^https?:\/\/[^\s"'<>]+$/i.test(media.thumbnail)
+					? ` poster="${escapeHtml(media.thumbnail)}"` : '';
+				el.outerHTML = `<video controls preload="metadata"${poster} style="display:block;margin:1em auto;max-width:100%;max-height:70vh;border-radius:0.5rem"><source src="${safeUrl}"></video>`;
 				break;
 			}
 			case 'audio': {
-				el.outerHTML = `<audio controls style="display:block;margin:1em auto"><source src="${media.url}"></audio>`;
+				el.outerHTML = `<audio controls style="display:block;margin:1em auto"><source src="${safeUrl}"></audio>`;
 				break;
 			}
 			default: {
 				// file / unknown → download link
 				const rawName = media.url.split('/').pop() || mediaId;
 				// 去掉图床加的时间戳前缀（如 1784086706996_逍遥小散仙1-28.rar → 逍遥小散仙1-28.rar）
-				const filename = rawName.replace(/^\d+_/, '');
-				el.outerHTML = `<a href="${media.url}" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:6px;margin:0.5em 0;text-decoration:none;color:var(--link-color,#2563eb);font-size:14px">
+				const filename = escapeHtml(rawName.replace(/^\d+_/, ''));
+				el.outerHTML = `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:6px;margin:0.5em 0;text-decoration:none;color:var(--link-color,#2563eb);font-size:14px">
 					<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
 					${filename}
 				</a>`;

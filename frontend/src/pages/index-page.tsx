@@ -15,7 +15,7 @@ import { getSharedCache, setSharedCache } from '@/hooks/use-shared-cache';
 import { apiFetch, API_BASE, formatDate, getSecurityHeaders, type Category, type Post } from '@/lib/api';
 import { getToken, getUser } from '@/lib/auth';
 import { attachFancybox, batchGetMedia, getCachedMedia, highlightCodeBlocks, initVideoPosters, renderMarkdownToHtml, resolveMediaUrls, resolveR2Url } from '@/lib/markdown';
-import { uploadMedia, generateVideoThumbnail, attachMediaToPost } from '@/lib/media';
+import { uploadMedia, generateVideoThumbnail, attachMediaToPost, fetchImgbedConfig } from '@/lib/media';
 import { getFirstVideoUrl } from '@/lib/video-thumbnail';
 import { VideoThumbnail } from '@/components/video-thumbnail';
 import { PostThumbnail } from '@/components/post-thumbnail';
@@ -968,17 +968,17 @@ export function IndexPage() {
 
 					setUploadProgress(0);
 					try {
-						if (config?.imgbed_domain && config?.imgbed_auth_code) {
-							// 走 ImgBed 上传（带进度回调）
-							const uploadFile = new File([processedFile], finalName, { type: finalMime });
-							const result = await uploadMedia(uploadFile, config.imgbed_domain, config.imgbed_auth_code, setUploadProgress);
-							insertIntoContent(`\n\n!MEDIA(${result.id})\n`);
-							// 视频异步生成缩略图
-							if (file.type.startsWith('video/')) {
-								generateVideoThumbnail(result.id, result.url);
-							}
-						} else {
-							throw new Error('上传功能暂不可用（未配置图床）');
+						// 走 ImgBed 上传（带进度回调）；上传配置需登录后获取
+						const cfg = await fetchImgbedConfig();
+						if (!cfg) {
+							throw new Error('上传配置获取失败，请重新登录后重试');
+						}
+						const uploadFile = new File([processedFile], finalName, { type: finalMime });
+						const result = await uploadMedia(uploadFile, cfg.domain, cfg.authCode, setUploadProgress);
+						insertIntoContent(`\n\n!MEDIA(${result.id})\n`);
+						// 视频异步生成缩略图
+						if (file.type.startsWith('video/')) {
+							generateVideoThumbnail(result.id, result.url);
 						}
 						setPreviewOpen(true);
 					} catch (err: any) {

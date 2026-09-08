@@ -108,8 +108,12 @@
 		"binding": "ASSETS"
 	},
 	"vars": {
-		"IMGBED_DOMAIN": "https://yun.siyou.qzz.io",
-		"IMGBED_AUTH_CODE": "123456"
+		"IMGBED_DOMAIN": "https://yun.siyou.qzz.io"
+		/**
+		 * 敏感配置不要写在 vars 里（会进仓库）：
+		 *   wrangler secret put IMGBED_AUTH_CODE    # 图床上传密码（论坛视频直传图床用）
+		 *   wrangler secret put IMGBED_ADMIN_TOKEN  # 可选：图床后台生成的 API Token，配置后删帖会同步删除图床文件
+		 */
 	}
 	// "services": [  {   "binding": "MY_SERVICE",   "service": "my-service"  } ]
 

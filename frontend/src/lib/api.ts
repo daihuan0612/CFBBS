@@ -7,7 +7,7 @@ export type ForumConfig = {
 	jwt_secret_configured?: boolean;
 	r2_public_url?: string;
 	imgbed_domain?: string;
-	imgbed_auth_code?: string;
+	// 注意：imgbed_auth_code 不再通过公开 /api/config 下发，登录后走 /api/user/upload-config
 	// 二次开发新增
 	invite_only?: boolean;
 	encrypted_attachments_enabled?: boolean;

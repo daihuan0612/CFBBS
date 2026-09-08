@@ -81,9 +81,11 @@ async function deletePostMedia(env: any, ctx: any, postId: string | number) {
 
 		if (!mediaRows.results?.length) return;
 
-		// 异步删除图床文件
+		// 异步删除图床文件（需配置 IMGBED_ADMIN_TOKEN，否则跳过）
 		const imgbedDomain = (env as any).IMGBED_DOMAIN || '';
+		const imgbedToken = (env as any).IMGBED_ADMIN_TOKEN || '';
 		ctx.waitUntil((async () => {
+			if (!imgbedToken) return; // 未配置管理 Token，无法删除图床文件
 			for (const row of mediaRows.results as any[]) {
 				const url: string = row.url || '';
 				if (!url || !imgbedDomain) continue;
@@ -92,9 +94,10 @@ async function deletePostMedia(env: any, ctx: any, postId: string | number) {
 					const parsed = new URL(url);
 					if (parsed.origin === imgbedDomain.replace(/\/+$/, '') && parsed.pathname.startsWith('/file/')) {
 						const filePath = parsed.pathname.replace(/^\/file\//, '');
-						// 尝试删图床（需要 API Token 或有管理 session，失败静默）
+						// 带管理 API Token 调用图床删除接口
 						fetch(`${imgbedDomain}/api/manage/delete/${encodeURIComponent(filePath)}`, {
 							method: 'DELETE',
+							headers: { 'Authorization': `Bearer ${imgbedToken}` },
 						}).catch(() => {});
 					}
 				} catch {}
@@ -120,20 +123,63 @@ function getPepper(): string {
 	return (globalThis as any).PASSWORD_PEPPER || (globalThis as any).webhook_secret || (globalThis as any).JWT_SECRET || '';
 }
 
-async function hashPassword(password: string, usePepper = true): Promise<string> {
-	const input = usePepper && getPepper() ? password + ':' + getPepper() : password;
+const PBKDF2_ITERATIONS = 20_000; // Workers 免费版 CPU 限制（10ms/请求）下安全余量；付费计划可调高至 100k+
+const PBKDF2_PREFIX = 'pbkdf2$';
+
+function toHex(buf: Uint8Array): string {
+	return Array.from(buf).map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+// 旧版 SHA-256(pepper) 哈希 — 仅用于校验存量密码（无盐，不用于新密码）
+async function legacySha256Hash(input: string): Promise<string> {
 	const myText = new TextEncoder().encode(input);
 	const myDigest = await crypto.subtle.digest({ name: 'SHA-256' }, myText);
-	const hashArray = Array.from(new Uint8Array(myDigest));
-	return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+	return toHex(new Uint8Array(myDigest));
+}
+
+// 新版 PBKDF2-SHA256，输出格式: pbkdf2$iterations$saltHex$hashHex（带随机盐，含 pepper）
+async function hashPassword(password: string, _usePepper = true): Promise<string> {
+	const input = getPepper() ? `${password}:${getPepper()}` : password;
+	const salt = crypto.getRandomValues(new Uint8Array(16));
+	const keyMaterial = await crypto.subtle.importKey('raw', new TextEncoder().encode(input), 'PBKDF2', false, ['deriveBits']);
+	const bits = await crypto.subtle.deriveBits(
+		{ name: 'PBKDF2', salt: salt as BufferSource, iterations: PBKDF2_ITERATIONS, hash: 'SHA-256' },
+		keyMaterial,
+		256
+	);
+	return `${PBKDF2_PREFIX}${PBKDF2_ITERATIONS}$${toHex(salt)}$${toHex(new Uint8Array(bits))}`;
+}
+
+async function pbkdf2Verify(input: string, storedHash: string): Promise<boolean> {
+	try {
+		const parts = storedHash.split('$');
+		if (parts.length !== 4) return false;
+		const [, iterStr, saltHex, hashHex] = parts;
+		const iterations = parseInt(iterStr, 10);
+		if (!Number.isFinite(iterations) || iterations < 1) return false;
+		const saltBytes = saltHex.match(/.{2}/g)?.map((h) => parseInt(h, 16)) || [];
+		if (!saltBytes.length) return false;
+		const salt = new Uint8Array(saltBytes);
+		const pepperInput = getPepper() ? `${input}:${getPepper()}` : input;
+		const keyMaterial = await crypto.subtle.importKey('raw', new TextEncoder().encode(pepperInput), 'PBKDF2', false, ['deriveBits']);
+		const bits = await crypto.subtle.deriveBits(
+			{ name: 'PBKDF2', salt: salt as BufferSource, iterations, hash: 'SHA-256' },
+			keyMaterial,
+			256
+		);
+		return toHex(new Uint8Array(bits)) === hashHex;
+	} catch {
+		return false;
+	}
 }
 
 async function verifyPassword(input: string, storedHash: string): Promise<boolean> {
-	// 先尝试 pepper hash
-	if (await hashPassword(input, true) === storedHash) return true;
-	// 兼容老密码（无 pepper）
-	if (await hashPassword(input, false) === storedHash) return true;
-	return false;
+	if (storedHash.startsWith(PBKDF2_PREFIX)) {
+		return pbkdf2Verify(input, storedHash);
+	}
+	// 兼容老密码（SHA-256，无盐）
+	if (getPepper() && (await legacySha256Hash(`${input}:${getPepper()}`)) === storedHash) return true;
+	return (await legacySha256Hash(input)) === storedHash;
 }
 
 function generateToken(): string {
@@ -610,7 +656,6 @@ export default {
 						jwt_secret_configured: !!env.JWT_SECRET && String(env.JWT_SECRET).length >= 32,
 						r2_public_url: (env as any).R2_PUBLIC_BASE_URL || '',
 						imgbed_domain: (env as any).IMGBED_DOMAIN || '',
-						imgbed_auth_code: (env as any).IMGBED_AUTH_CODE || '',
 						max_upload_size_mb: maxUploadSizeMb,
 						...featureFlags
 					};
@@ -798,6 +843,14 @@ export default {
 					return jsonResponse({ error: '缺少 url 或 mime' }, 400);
 				}
 
+				// URL 强校验：必须 http(s) 绝对地址，杜绝注入属性/脚本的恶意 URL
+				if (body.url.length > 2048) {
+					return jsonResponse({ error: 'url 过长' }, 400);
+				}
+				if (!/^https?:\/\/[^\s"'<>]+$/i.test(body.url)) {
+					return jsonResponse({ error: 'url 格式无效' }, 400);
+				}
+
 				// MIME 白名单校验：仅允许图片、视频、压缩包
 				const allowedMimes = [
 					'image/', 'video/',
@@ -920,6 +973,15 @@ export default {
 				if (!body.post_id || !body.media_ids?.length) {
 					return jsonResponse({ error: '缺少 post_id 或 media_ids' }, 400);
 				}
+				// 越权校验：仅本人或管理员可关联媒体
+				const owned = await env.cforum_db.prepare(
+					`SELECT id FROM media_files WHERE id IN (${body.media_ids.map(() => '?').join(',')}) AND owner_id = ?`
+				).bind(...body.media_ids, String(user.id)).all();
+				const ownedIds = new Set((owned.results || []).map((r: any) => r.id));
+				const foreign = body.media_ids.filter((id: string) => !ownedIds.has(id));
+				if (foreign.length && user.role !== 'admin') {
+					return jsonResponse({ error: `无权关联媒体: ${foreign.join(', ')}` }, 403);
+				}
 				const now = Math.floor(Date.now() / 1000);
 				const stmt = env.cforum_db.prepare(
 					'INSERT OR IGNORE INTO post_media (post_id, media_id, position, created_at) VALUES (?, ?, ?, ?)'
@@ -961,6 +1023,17 @@ export default {
 
 				if (!await verifyPassword(password, user.password)) {
 					return jsonResponse({ error: '用户名或密码错误' }, 401);
+				}
+
+				// 旧版 SHA-256 哈希自动升级为 PBKDF2（登录成功后一次性完成）
+				if (!user.password.startsWith(PBKDF2_PREFIX)) {
+					try {
+						const upgradedHash = await hashPassword(password);
+						await env.cforum_db.prepare('UPDATE users SET password = ? WHERE id = ?').bind(upgradedHash, user.id).run();
+						user.password = upgradedHash;
+					} catch (e) {
+						console.error('Password upgrade failed:', e);
+					}
 				}
 
 				// TOTP Check
@@ -1112,6 +1185,20 @@ export default {
 					email: user.email,
 					db_id: user.id,
 				});
+			} catch (e) {
+				return handleError(e);
+			}
+		}
+
+		// GET /api/user/upload-config — 登录用户获取图床上传配置（不公开下发，防凭据泄露）
+		if (url.pathname === '/api/user/upload-config' && method === 'GET') {
+			try {
+				const payload = await authenticate(request);
+				if (!payload) return jsonResponse({ error: 'Unauthorized' }, 401);
+				return jsonResponse({
+					imgbed_domain: (env as any).IMGBED_DOMAIN || '',
+					imgbed_auth_code: (env as any).IMGBED_AUTH_CODE || '',
+				}, 200, 'no-store, private');
 			} catch (e) {
 				return handleError(e);
 			}
@@ -2125,24 +2212,6 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 
 		// --- END ADMIN ROUTES ---
 
-		// TEST: Email Debug
-		if (url.pathname === '/api/test-email' && method === 'POST') {
-			try {
-				const body = await request.json() as any;
-				const { to } = body;
-				if (!to) return jsonResponse({ error: '缺少收件人地址' }, 400);
-
-				console.log('[DEBUG] Starting test email to:', to);
-				await sendEmail(to, '测试邮件', '<h1>你好</h1><p>这是一封测试邮件。</p>', env);
-				console.log('[DEBUG] Test email sent successfully');
-
-				return jsonResponse({ success: true, message: '邮件已发送' });
-			} catch (e) {
-				console.error('[DEBUG] Test email failed:', e);
-				return handleError(e);
-			}
-		}
-
 		// AUTH: Register
 		if (url.pathname === '/api/register' && method === 'POST') {
 			try {
@@ -2213,7 +2282,7 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 					}
 				}
 
-				return jsonResponse({ success, message: '注册成功，请前往邮箱完成验证。' }, 201);
+				return jsonResponse({ success, message: '注册成功，现在可以登录了。' }, 201);
 			} catch (e: any) {
 				if (e.message && e.message.includes('UNIQUE constraint failed')) {
 					return jsonResponse({ error: 'Email already exists' }, 409);
@@ -2245,9 +2314,11 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 			}
 		}
 
-		// GET /api/users — 管理后台用，不缓存
+		// GET /api/users — 需登录（防用户枚举）
 		if (url.pathname === '/api/users' && method === 'GET') {
 			try {
+				const userPayload = await authenticate(request);
+				if (!userPayload) return jsonResponse({ error: 'Unauthorized' }, 401);
 				const { results } = await env.cforum_db.prepare(
 					'SELECT id, username, created_at FROM users'
 				).all();
@@ -2486,11 +2557,19 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 				if (!body.post_id || !body.thumbnail_url) {
 					return jsonResponse({ error: '缺少 post_id 或 thumbnail_url' }, 400);
 				}
-				// 查询当前帖子是否已有缩略图
+				// 查询当前帖子是否已有缩略图（同时校验作者/管理员）
 				const post = await env.cforum_db.prepare(
-					'SELECT thumbnail_url FROM posts WHERE id = ?'
-				).bind(body.post_id).first<{ thumbnail_url: string | null }>();
+					'SELECT author_id, thumbnail_url FROM posts WHERE id = ?'
+				).bind(body.post_id).first<{ author_id: number; thumbnail_url: string | null }>();
 				if (!post) return jsonResponse({ error: '帖子不存在' }, 404);
+				// 越权校验：仅帖子作者或管理员可设置缩略图
+				if (post.author_id !== userPayload.id && userPayload.role !== 'admin') {
+					return jsonResponse({ error: '无权设置该帖子的缩略图' }, 403);
+				}
+				// 缩略图 URL 格式校验（防注入）
+				if (!/^https?:\/\/[^\s"'<>]+$/i.test(body.thumbnail_url)) {
+					return jsonResponse({ error: '缩略图 URL 格式无效' }, 400);
+				}
 				// 如果已有缩略图，直接返回现有的（幂等）
 				if (post.thumbnail_url) {
 					return jsonResponse({ thumbnail_url: post.thumbnail_url });
@@ -2894,11 +2973,13 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 					return jsonResponse({ error: '缺少 url 参数' }, 400);
 				}
 				// 只允许代理视频文件，防止滥用
-				// 优先校验视频文件扩展名；video.twimg.com 等 CDN 可能不带扩展名，也放行
+				// 1) 视频文件扩展名白名单；2) 图床域名精确匹配（host 完全一致 + /file/ 或 /tucao/ 路径）
 				const imgbedHost = env.IMGBED_DOMAIN ? new URL(env.IMGBED_DOMAIN).host : '';
+				let targetHost = '';
+				try { targetHost = new URL(targetUrl).host; } catch {}
 				const isVideo = /\.(mp4|webm|mov|ogg|mkv|m3u8)(\?|$)/i.test(targetUrl)
-					|| /video\.twimg\.com/i.test(targetUrl)
-					|| (imgbedHost && targetUrl.includes(imgbedHost));
+					|| /^video\.twimg\.com$/i.test(targetHost)
+					|| (imgbedHost && targetHost === imgbedHost && /^\/(file|tucao)\//i.test(new URL(targetUrl).pathname));
 				if (!isVideo) {
 					return jsonResponse({ error: '只允许代理视频文件' }, 400);
 				}

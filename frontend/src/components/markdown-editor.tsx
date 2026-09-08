@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { uploadMedia, generateVideoThumbnail } from '@/lib/media';
+import { uploadMedia, generateVideoThumbnail, fetchImgbedConfig } from '@/lib/media';
 import { renderMarkdownToHtml, resolveMediaUrls } from '@/lib/markdown';
 
 // 上传文件类型与大小限制
@@ -35,15 +35,13 @@ interface MarkdownEditorProps {
 	placeholder?: string;
 	r2PublicUrl?: string;
 	userRole?: string;
-	imgbedDomain?: string;
-	imgbedAuthCode?: string;
 	maxUploadSizeMb?: number;
 }
 
 /**
  * CodeMirror 6 + Markdown Toolbar editor for CFBBS.
  */
-export function MarkdownEditor({ content, setContent, placeholder: ph, r2PublicUrl, userRole, imgbedDomain, imgbedAuthCode, maxUploadSizeMb = 500 }: MarkdownEditorProps) {
+export function MarkdownEditor({ content, setContent, placeholder: ph, r2PublicUrl, userRole, maxUploadSizeMb = 500 }: MarkdownEditorProps) {
 	const editorRef = useRef<HTMLDivElement>(null);
 	const viewRef = useRef<EditorView | null>(null);
 	const [isDark, setIsDark] = React.useState(false);
@@ -416,12 +414,16 @@ export function MarkdownEditor({ content, setContent, placeholder: ph, r2PublicU
 				}
 			}
 
-			if (imgbedDomain && imgbedAuthCode) {
-				// 走 ImgBed 上传（带进度回调）
+			if (userRole) {
+				// 走 ImgBed 上传（带进度回调）；上传配置需登录后获取
+				const cfg = await fetchImgbedConfig();
+				if (!cfg) {
+					throw new Error('上传配置获取失败，请重新登录后重试');
+				}
 				const result = await uploadMedia(
 					new File([uploadFile], finalName, { type: finalMime }),
-					imgbedDomain,
-					imgbedAuthCode,
+					cfg.domain,
+					cfg.authCode,
 					setUploadProgress
 				);
 				replaceSelection(`\n!MEDIA(${result.id})\n`);
@@ -438,7 +440,7 @@ export function MarkdownEditor({ content, setContent, placeholder: ph, r2PublicU
 			setUploadProgress(null);
 			e.target.value = '';
 		}
-	}, [replaceSelection, imgbedDomain, imgbedAuthCode]);
+	}, [replaceSelection, userRole]);
 
 	return (
 		<div className="space-y-3">
@@ -486,18 +488,7 @@ export function MarkdownEditor({ content, setContent, placeholder: ph, r2PublicU
 							{uploadProgress < 100 ? `${uploadProgress}%` : '登记中...'}
 						</span>
 					</div>
-				) : imgbedDomain && imgbedAuthCode ? (
-				<label className="relative cursor-pointer">
-					<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="上传文件"
-						disabled={uploadProgress !== null} asChild>
-						<span><Upload className="h-3.5 w-3.5" /></span>
-					</Button>
-					<input type="file"
-						accept=".jpg,.jpeg,.png,.gif,.webp,.bmp,.mp4,.webm,.mov,.avi,.zip,.rar,.7z,.tar,.gz,.tgz"
-						className="absolute inset-0 opacity-0 cursor-pointer"
-						onChange={handleImageUpload} disabled={uploadProgress !== null} />
-				</label>
-			) : userRole ? (
+				) : userRole ? (
 				<label className="relative cursor-pointer">
 					<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="上传文件"
 						disabled={uploadProgress !== null} asChild>
@@ -519,7 +510,7 @@ export function MarkdownEditor({ content, setContent, placeholder: ph, r2PublicU
 			) : null}
 
 			{/* 上传格式提示 */}
-			{imgbedDomain && imgbedAuthCode ? (
+			{userRole ? (
 				<div className="text-xs text-muted-foreground leading-relaxed">
 					支持上传：图片(JPG/PNG/GIF/WebP)、视频(MP4/WebM/MOV)、压缩包(ZIP/RAR/7z)。统一限制 ≤{maxUploadSizeMb}MB。TXT/DOC/PDF 等其他格式请打包后上传。
 				</div>
