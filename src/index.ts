@@ -850,6 +850,19 @@ export default {
 				if (!/^https?:\/\/[^\s"'<>]+$/i.test(body.url)) {
 					return jsonResponse({ error: 'url 格式无效' }, 400);
 				}
+				// 仅允许登记本图床 tucao 目录下的文件（论坛上传唯一落盘目录）
+				const imgbedDomain = (env as any).IMGBED_DOMAIN || '';
+				if (imgbedDomain) {
+					let parsedUrl: URL;
+					try {
+						parsedUrl = new URL(body.url);
+					} catch {
+						return jsonResponse({ error: 'url 格式无效' }, 400);
+					}
+					if (parsedUrl.origin !== imgbedDomain.replace(/\/+$/, '') || !parsedUrl.pathname.startsWith('/tucao/')) {
+						return jsonResponse({ error: '仅允许登记本图床 tucao 目录下的文件' }, 400);
+					}
+				}
 
 				// MIME 白名单校验：仅允许图片、视频、压缩包
 				const allowedMimes = [
