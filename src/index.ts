@@ -821,12 +821,15 @@ export default {
 				const allowedImageMimes = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/bmp']);
 				const allowedVideoMimes = new Set(['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo']);
 				const allowedArchiveMimes = new Set([
-					'application/zip', 'application/x-zip-compressed', 'application/x-rar-compressed',
-					'application/vnd.rar', 'application/x-7z-compressed', 'application/gzip',
-					'application/x-gzip', 'application/x-tar',
+					'application/zip', 'application/x-zip', 'application/x-zip-compressed',
+					'application/x-rar', 'application/x-rar-compressed', 'application/vnd.rar',
+					'application/x-7z-compressed', 'application/gzip', 'application/x-gzip',
+					'application/x-tar', 'application/x-compress', 'application/octet-stream',
 				]);
+				const archiveFilename = /\.(zip|rar|7z|tar|gz|tgz)$/i.test(file.name);
 				const mime = file.type.toLowerCase();
-				if (!allowedImageMimes.has(mime) && !allowedVideoMimes.has(mime) && !allowedArchiveMimes.has(mime)) {
+				const isArchive = archiveFilename && (!mime || allowedArchiveMimes.has(mime));
+				if (!allowedImageMimes.has(mime) && !allowedVideoMimes.has(mime) && !isArchive) {
 					return jsonResponse({ error: '不支持的文件类型（SVG 及其他可执行格式已禁用）' }, 400);
 				}
 

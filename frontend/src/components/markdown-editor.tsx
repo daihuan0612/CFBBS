@@ -22,16 +22,19 @@ const UPLOAD_CONFIG = {
 const ALLOWED_EXTENSIONS = /\.(jpg|jpeg|png|gif|webp|bmp|mp4|webm|mov|avi|zip|rar|7z|tar|gz|tgz)$/i;
 const ALLOWED_IMAGE_MIMES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/bmp'];
 const ALLOWED_VIDEO_MIMES = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo'];
-const ARCHIVE_MIMES = ['application/zip', 'application/x-zip-compressed', 'application/x-rar-compressed', 'application/vnd.rar', 'application/x-7z-compressed', 'application/gzip', 'application/x-gzip', 'application/x-tar'];
+const ARCHIVE_MIMES = ['application/zip', 'application/x-zip', 'application/x-zip-compressed', 'application/x-rar', 'application/x-rar-compressed', 'application/vnd.rar', 'application/x-7z-compressed', 'application/gzip', 'application/x-gzip', 'application/x-tar', 'application/x-compress', 'application/octet-stream'];
+const ARCHIVE_EXTENSION = /\.(zip|rar|7z|tar|gz|tgz)$/i;
 
 function validateFile(file: File): string | null {
 	// 扩展名校验（兜底）
 	if (!ALLOWED_EXTENSIONS.test(file.name)) {
 		return '不支持的文件格式。仅允许：图片(JPG/PNG/GIF/WebP)、视频(MP4/WebM/MOV)、压缩包(ZIP/RAR/7z/tar.gz)。TXT/DOC/PDF 等请打包后上传。';
 	}
-	// MIME 白名单；明确排除 SVG 等可执行图片格式。
-	const isAllowedMime = ALLOWED_IMAGE_MIMES.includes(file.type) || ALLOWED_VIDEO_MIMES.includes(file.type) || ARCHIVE_MIMES.includes(file.type);
-	if (file.type && !isAllowedMime) {
+	// 图片和视频必须使用精确 MIME 白名单；压缩包允许已知扩展名兼容浏览器的
+	// application/octet-stream / application/x-rar 等不一致标识，但 SVG 始终被拒绝。
+	const isArchive = ARCHIVE_EXTENSION.test(file.name);
+	const isAllowedMime = ALLOWED_IMAGE_MIMES.includes(file.type) || ALLOWED_VIDEO_MIMES.includes(file.type) || (isArchive && (!file.type || ARCHIVE_MIMES.includes(file.type)));
+	if (!isAllowedMime) {
 		return '不支持的文件类型（SVG 及其他可执行格式已禁用）。';
 	}
 	// 大小校验
