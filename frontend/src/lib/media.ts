@@ -21,15 +21,41 @@ export async function uploadMedia(
 	onProgress?.(0);
 	const formData = new FormData();
 	formData.append('file', file);
-	const res = await fetch(`${API_BASE}/media/upload`, {
-		method: 'POST',
-		headers: getSecurityHeaders('POST', null),
-		body: formData,
+
+	// fetch 目前不会暴露请求体上传进度；这里使用 XMLHttpRequest 仅为监听 upload
+	// 事件。文件到达 Worker 后，进度停在 95%，直到 Worker 转发图床并返回结果。
+	return new Promise<MediaUploadResult>((resolve, reject) => {
+		const xhr = new XMLHttpRequest();
+		xhr.open('POST', `${API_BASE}/media/upload`);
+		for (const [name, value] of Object.entries(getSecurityHeaders('POST', null))) {
+			xhr.setRequestHeader(name, value);
+		}
+		xhr.responseType = 'text';
+
+		xhr.upload.onprogress = (event) => {
+			if (!event.lengthComputable) return;
+			// 预留最后 5% 显示 Worker → 图床的服务端转发与登记阶段。
+			onProgress?.(Math.min(95, Math.max(1, Math.round((event.loaded / event.total) * 95))));
+		};
+		xhr.upload.onload = () => onProgress?.(95);
+		xhr.onerror = () => reject(new Error('网络错误，媒体上传失败'));
+		xhr.onabort = () => reject(new Error('媒体上传已取消'));
+		xhr.onload = () => {
+			let data: any = null;
+			try {
+				data = xhr.responseText ? JSON.parse(xhr.responseText) : null;
+			} catch {
+				// Cloudflare 出错时可能返回 HTML；保留通用错误提示。
+			}
+			if (xhr.status < 200 || xhr.status >= 300) {
+				reject(new Error(data?.error || `媒体上传失败 (${xhr.status || '网络错误'})`));
+				return;
+			}
+			onProgress?.(100);
+			resolve(data as MediaUploadResult);
+		};
+		xhr.send(formData);
 	});
-	const data = await res.json();
-	if (!res.ok) throw new Error(data?.error || '媒体上传失败');
-	onProgress?.(100);
-	return data as MediaUploadResult;
 }
 
 export async function generateVideoThumbnail(mediaId: string, videoUrl: string, postId?: number): Promise<void> {
