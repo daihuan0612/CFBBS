@@ -101,7 +101,7 @@
 | `ADMIN_EMAIL` | 可选 | 首次部署自动创建管理员（如不设置需自行注册） |
 | `ADMIN_PASSWORD` | 可选 | 管理员密码，与 `ADMIN_EMAIL` 配对使用 |
 | `ADMIN_NICKNAME` | 可选 | 管理员昵称（默认 `Admin`） |
-| `IMGBED_DOMAIN` | 是 | 图床（网盘）域名，如 `https://yun.siyou.qzz.io`，在 Cloudflare Worker 后台设置 |
+| `IMGBED_DOMAIN` | 是 | 图床（网盘）域名，在 Cloudflare Worker 后台设置 |
 | `IMGBED_AUTH_CODE` | 必填 | 图床的上传密码（存在 GitHub Secrets 里，部署时自动写入 Worker，改法见下文"改上传密码"） |
 | `IMGBED_ADMIN_TOKEN` | 可选 | 图床管理 Token（删除帖子时自动删图用） |
 
