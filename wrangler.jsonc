@@ -104,8 +104,15 @@
 	 * https://developers.cloudflare.com/workers/wrangler/configuration/#service-bindings
 	 */
 	"vars": {
-		"IMGBED_DOMAIN": "https://yun.siyou.qzz.io",
-		"IMGBED_AUTH_CODE": "123456"
+		"IMGBED_DOMAIN": "https://yun.siyou.qzz.io"
+		/**
+		 * 敏感配置不要写在 vars 里（会进仓库）：
+			 *   wrangler secret put IMGBED_AUTH_CODE    # 图床上传密码（仅由 Worker 服务端使用）
+		 *   wrangler secret put IMGBED_ADMIN_TOKEN  # 可选：图床后台生成的 API Token，配置后删帖会同步删除图床文件
+		 */
+	},
+	"triggers": {
+		"crons": ["17 3 * * *"]
 	}
 	// "services": [  {   "binding": "MY_SERVICE",   "service": "my-service"  } ]
 

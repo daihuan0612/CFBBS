@@ -20,20 +20,19 @@ const UPLOAD_CONFIG = {
 	archive: { mimePrefix: 'application/', maxSize: 300 * 1024 * 1024, label: '压缩包' },
 };
 const ALLOWED_EXTENSIONS = /\.(jpg|jpeg|png|gif|webp|bmp|mp4|webm|mov|avi|zip|rar|7z|tar|gz|tgz)$/i;
-const ALLOWED_MIME_PREFIXES = ['image/', 'video/', 'application/zip', 'application/x-zip', 'application/x-rar', 'application/x-7z', 'application/gzip', 'application/x-tar'];
-const ARCHIVE_MIMES = ['application/zip', 'application/x-zip-compressed', 'application/x-rar-compressed', 'application/x-7z-compressed', 'application/gzip', 'application/x-gzip', 'application/x-tar'];
+const ALLOWED_IMAGE_MIMES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/bmp'];
+const ALLOWED_VIDEO_MIMES = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo'];
+const ARCHIVE_MIMES = ['application/zip', 'application/x-zip-compressed', 'application/x-rar-compressed', 'application/vnd.rar', 'application/x-7z-compressed', 'application/gzip', 'application/x-gzip', 'application/x-tar'];
 
 function validateFile(file: File): string | null {
 	// 扩展名校验（兜底）
 	if (!ALLOWED_EXTENSIONS.test(file.name)) {
 		return '不支持的文件格式。仅允许：图片(JPG/PNG/GIF/WebP)、视频(MP4/WebM/MOV)、压缩包(ZIP/RAR/7z/tar.gz)。TXT/DOC/PDF 等请打包后上传。';
 	}
-	// MIME 校验
-	const isAllowedMime = ALLOWED_MIME_PREFIXES.some(p => file.type.startsWith(p) || file.type.startsWith(p.toLowerCase()));
-	const isArchive = ARCHIVE_MIMES.some(m => file.type.startsWith(m));
-	if (!isAllowedMime && !isArchive) {
-		// 如果 MIME 不匹配但扩展名匹配（某些浏览器对压缩包不报 MIME），放行
-		// 但 TXT/DOC/PDF 等扩展名已被 ALLOWED_EXTENSIONS 拦截
+	// MIME 白名单；明确排除 SVG 等可执行图片格式。
+	const isAllowedMime = ALLOWED_IMAGE_MIMES.includes(file.type) || ALLOWED_VIDEO_MIMES.includes(file.type) || ARCHIVE_MIMES.includes(file.type);
+	if (file.type && !isAllowedMime) {
+		return '不支持的文件类型（SVG 及其他可执行格式已禁用）。';
 	}
 	// 大小校验
 	if (file.type.startsWith('image/') && file.size > UPLOAD_CONFIG.image.maxSize) {
@@ -54,14 +53,13 @@ interface MarkdownEditorProps {
 	placeholder?: string;
 	r2PublicUrl?: string;
 	userRole?: string;
-	imgbedDomain?: string;
-	imgbedAuthCode?: string;
+	maxUploadSizeMb?: number;
 }
 
 /**
  * CodeMirror 6 + Markdown Toolbar editor for CFBBS.
  */
-export function MarkdownEditor({ content, setContent, placeholder: ph, r2PublicUrl, userRole, imgbedDomain, imgbedAuthCode }: MarkdownEditorProps) {
+export function MarkdownEditor({ content, setContent, placeholder: ph, r2PublicUrl, userRole, maxUploadSizeMb = 500 }: MarkdownEditorProps) {
 	const editorRef = useRef<HTMLDivElement>(null);
 	const viewRef = useRef<EditorView | null>(null);
 	const [isDark, setIsDark] = React.useState(false);
@@ -434,12 +432,10 @@ export function MarkdownEditor({ content, setContent, placeholder: ph, r2PublicU
 				}
 			}
 
-			if (imgbedDomain && imgbedAuthCode) {
-				// 走 ImgBed 上传（带进度回调）
+			if (userRole) {
+				// 通过论坛 Worker 上传；图床凭据仅保存在服务端。
 				const result = await uploadMedia(
 					new File([uploadFile], finalName, { type: finalMime }),
-					imgbedDomain,
-					imgbedAuthCode,
 					setUploadProgress
 				);
 				replaceSelection(`\n!MEDIA(${result.id})\n`);
@@ -456,7 +452,7 @@ export function MarkdownEditor({ content, setContent, placeholder: ph, r2PublicU
 			setUploadProgress(null);
 			e.target.value = '';
 		}
-	}, [replaceSelection, imgbedDomain, imgbedAuthCode]);
+	}, [replaceSelection, userRole]);
 
 	return (
 		<div className="space-y-3">
@@ -504,18 +500,7 @@ export function MarkdownEditor({ content, setContent, placeholder: ph, r2PublicU
 							{uploadProgress < 100 ? `${uploadProgress}%` : '登记中...'}
 						</span>
 					</div>
-				) : imgbedDomain && imgbedAuthCode ? (
-				<label className="relative cursor-pointer">
-					<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="上传文件"
-						disabled={uploadProgress !== null} asChild>
-						<span><Upload className="h-3.5 w-3.5" /></span>
-					</Button>
-					<input type="file"
-						accept=".jpg,.jpeg,.png,.gif,.webp,.bmp,.mp4,.webm,.mov,.avi,.zip,.rar,.7z,.tar,.gz,.tgz"
-						className="absolute inset-0 opacity-0 cursor-pointer"
-						onChange={handleImageUpload} disabled={uploadProgress !== null} />
-				</label>
-			) : userRole === 'admin' ? (
+				) : userRole ? (
 				<label className="relative cursor-pointer">
 					<Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="上传文件"
 						disabled={uploadProgress !== null} asChild>
@@ -537,7 +522,7 @@ export function MarkdownEditor({ content, setContent, placeholder: ph, r2PublicU
 			) : null}
 
 			{/* 上传格式提示 */}
-			{imgbedDomain && imgbedAuthCode ? (
+			{userRole ? (
 				<div className="text-xs text-muted-foreground leading-relaxed">
 					支持上传：图片(JPG/PNG/GIF/WebP ≤10MB)、视频(MP4/WebM/MOV ≤500MB)、压缩包(ZIP/RAR/7z ≤300MB)。
 					TXT/DOC/PDF 等其他格式请打包后上传。

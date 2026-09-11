@@ -7,7 +7,8 @@ export type ForumConfig = {
 	jwt_secret_configured?: boolean;
 	r2_public_url?: string;
 	imgbed_domain?: string;
-	imgbed_auth_code?: string;
+	// 图床上传凭据仅保存在 Worker 端，不下发到浏览器
+	max_upload_size_mb?: number;
 	// 二次开发新增
 	invite_only?: boolean;
 	encrypted_attachments_enabled?: boolean;

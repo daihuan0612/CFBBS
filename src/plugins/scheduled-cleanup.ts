@@ -11,18 +11,21 @@ export async function runScheduledCleanup(db: D1Database): Promise<{
 	cleanedSessions: number;
 	cleanedAuditLogs: number;
 }> {
-	const now = Date.now();
+	const now = Math.floor(Date.now() / 1000);
+	const nowMillis = Date.now();
 	const result = { cleanedNonces: 0, cleanedTempPasswords: 0, cleanedRateLimits: 0, cleanedSessions: 0, cleanedAuditLogs: 0 };
 	try {
 		const r1 = await db.prepare('DELETE FROM nonces WHERE expires_at < ?').bind(now).run();
 		result.cleanedNonces = r1.meta.changes || 0;
 	} catch { /* 表可能不存在 */ }
 	try {
-		const r2 = await db.prepare('DELETE FROM temp_passwords WHERE expires_at < ? OR is_used = 1').bind(now).run();
+		const r2 = await db.prepare(
+			'DELETE FROM temp_passwords WHERE is_used = 1 OR expires_at < ? OR (expires_at > 100000000000 AND expires_at < ?)'
+		).bind(now, nowMillis).run();
 		result.cleanedTempPasswords = r2.meta.changes || 0;
 	} catch { /* 表可能不存在 */ }
 	try {
-		const r3 = await db.prepare('DELETE FROM rate_limits WHERE window_start < ?').bind(now - 120000).run();
+		const r3 = await db.prepare('DELETE FROM rate_limits WHERE window_start < ?').bind(nowMillis - 120000).run();
 		result.cleanedRateLimits = r3.meta.changes || 0;
 	} catch { /* 表可能不存在 */ }
 	try {

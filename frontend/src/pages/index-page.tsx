@@ -927,17 +927,13 @@ export function IndexPage() {
 
 					setUploadProgress(0);
 					try {
-						if (config?.imgbed_domain && config?.imgbed_auth_code) {
-							// 走 ImgBed 上传（带进度回调）
-							const uploadFile = new File([processedFile], finalName, { type: finalMime });
-							const result = await uploadMedia(uploadFile, config.imgbed_domain, config.imgbed_auth_code, setUploadProgress);
-							insertIntoContent(`\n\n!MEDIA(${result.id})\n`);
-							// 视频异步生成缩略图
-							if (file.type.startsWith('video/')) {
-								generateVideoThumbnail(result.id, result.url);
-							}
-						} else {
-							throw new Error('上传功能暂不可用（未配置图床）');
+						// 通过论坛 Worker 上传，图床凭据不会下发到浏览器。
+						const uploadFile = new File([processedFile], finalName, { type: finalMime });
+						const result = await uploadMedia(uploadFile, setUploadProgress);
+						insertIntoContent(`\n\n!MEDIA(${result.id})\n`);
+						// 视频异步生成缩略图
+						if (file.type.startsWith('video/')) {
+							generateVideoThumbnail(result.id, result.url);
 						}
 						setPreviewOpen(true);
 					} catch (err: any) {

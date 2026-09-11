@@ -92,7 +92,9 @@ export class Security {
 
         if (Math.random() < 0.01) {
              await this.env.cforum_db.prepare('DELETE FROM nonces WHERE expires_at < ?').bind(now).run();
-             await this.env.cforum_db.prepare('DELETE FROM temp_passwords WHERE expires_at < ?').bind(now).run();
+             await this.env.cforum_db.prepare(
+                  'DELETE FROM temp_passwords WHERE expires_at < ? OR (expires_at > 100000000000 AND expires_at < ?)'
+             ).bind(now, Date.now()).run();
         }
 
         return { valid: true };

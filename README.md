@@ -101,6 +101,9 @@
 | `ADMIN_EMAIL` | 可选 | 首次部署自动创建管理员（如不设置需自行注册） |
 | `ADMIN_PASSWORD` | 可选 | 管理员密码，与 `ADMIN_EMAIL` 配对使用 |
 | `ADMIN_NICKNAME` | 可选 | 管理员昵称（默认 `Admin`） |
+| `IMGBED_DOMAIN` | 是 | 图床（网盘）域名，如 `https://yun.siyou.qzz.io`，在 Cloudflare Worker 后台设置 |
+| `IMGBED_AUTH_CODE` | 必填 | 图床的上传密码（存在 GitHub Secrets 里，部署时自动写入 Worker，改法见下文"改上传密码"） |
+| `IMGBED_ADMIN_TOKEN` | 可选 | 图床管理 Token（删除帖子时自动删图用） |
 
 > 管理员账号通过环境变量配置，部署后首次初始化生效。之后修改环境变量不会重新创建管理员。
 
@@ -150,6 +153,7 @@
 | `ADMIN_EMAIL` | 可选 | 部署后自动创建管理员 |
 | `ADMIN_PASSWORD` | 可选 | 管理员密码 |
 | `ADMIN_NICKNAME` | 可选 | 管理员昵称 |
+| `IMGBED_AUTH_CODE` | 是 | 图床的上传密码（部署时自动写入 Worker，改法见下文） |
 
 ---
 
@@ -192,6 +196,48 @@ npx wrangler pages deploy public --branch production
 ### 数据库迁移
 
 项目内置 D1 迁移脚本（`wrangler d1 migrations apply`），自动创建所有表、索引和初始配置。
+
+## 部署维护与常见问题
+
+> 详细运维文档见 [部署维护说明.md](部署维护说明.md)
+
+### 怎么重新部署
+
+改动代码（或改配置）后，推送到 GitHub `master` 分支即自动部署，约 1~2 分钟生效。查看是否成功：仓库 → **Actions** 页面，最新一条是绿色对勾 = 成功。
+
+### 改图床上传密码
+
+上传密码只通过 GitHub Actions Secrets 注入 Worker，不写入仓库，也不会返回到浏览器。
+
+1. GitHub → 本仓库 → **Settings** → **Secrets and variables** → **Actions**
+2. 更新 `IMGBED_AUTH_CODE`，并同步修改图床端密码
+3. 推送一次变更触发部署
+
+### 上传限制（安全设计）
+
+- 浏览器将文件上传给论坛 Worker，Worker 才会使用图床凭据转发至固定的 `tucao` 文件夹和 Telegram 渠道
+- 图床凭据不通过公开或登录接口下发
+- SVG 和其他可执行图片格式被拒绝；仅允许受支持的图片、视频和压缩包格式
+
+### 上传不了排查
+
+1. 部署是否成功（GitHub → Actions）
+2. `IMGBED_AUTH_CODE` 是否已设置为 GitHub Actions Secret
+3. `IMGBED_DOMAIN` 是否与图床域名完全一致（不带多余斜杠）
+4. 图床端上传密码是否与 `IMGBED_AUTH_CODE` 一致
+5. 浏览器 F12 → 网络，检查 `/api/media/upload` 的响应
+
+### 常见问题
+
+**Q：部署失败，提示 secret 相关错误？**
+A：工作流使用 `wrangler versions secret put` 写入密钥。若仍失败，在 Cloudflare Workers 控制台处理未部署版本后重试。
+
+**Q：改了代码但没生效？**
+A：确认推送到 `master` 且 Actions 成功；Cloudflare CDN 缓存通常在 1~2 分钟内刷新。
+
+---
+
+## 数据库
 
 ### 核心数据表
 

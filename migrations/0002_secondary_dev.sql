@@ -31,9 +31,9 @@ CREATE INDEX IF NOT EXISTS idx_password_history_user ON password_history(user_id
 CREATE TABLE IF NOT EXISTS temp_passwords (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id INTEGER NOT NULL,
-  temp_password TEXT NOT NULL,        -- 明文临时密码（展示给管理员）
+  temp_password TEXT NOT NULL DEFAULT '', -- 保留兼容列；仅存空串，不持久化明文
   temp_password_hash TEXT NOT NULL,   -- 哈希（供用户登录用）
-  expires_at INTEGER NOT NULL,        -- 24h过期时间戳 (ms)
+  expires_at INTEGER NOT NULL,        -- 24h 过期 Unix 时间戳（秒）
   is_used INTEGER DEFAULT 0,
   created_by INTEGER NOT NULL,        -- 管理员ID
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

@@ -71,7 +71,7 @@ export function LoginPage() {
 
 			setUser(data.user);
 			setToken(data.token);
-			window.location.href = '/';
+			window.location.href = data.user?.must_change_password ? '/settings.html#password' : '/';
 		} catch (err: any) {
 			setError(String(err?.message || err));
 		} finally {
@@ -201,11 +201,6 @@ export function LoginPage() {
 								{loading ? '处理中...' : '登录'}
 							</Button>
 
-							<div className="text-right text-sm">
-								<a className="text-muted-foreground hover:underline" href="/forgot">
-									忘记密码？
-								</a>
-							</div>
 							<div className="text-xs text-muted-foreground text-center border-t pt-3 mt-2">
 								管理员已为你重置密码？请使用临时密码登录后立即修改。
 							</div>

@@ -81,9 +81,11 @@ async function deletePostMedia(env: any, ctx: any, postId: string | number) {
 
 		if (!mediaRows.results?.length) return;
 
-		// 异步删除图床文件
+		// 异步删除图床文件（需配置 IMGBED_ADMIN_TOKEN，否则跳过）
 		const imgbedDomain = (env as any).IMGBED_DOMAIN || '';
+		const imgbedToken = (env as any).IMGBED_ADMIN_TOKEN || '';
 		ctx.waitUntil((async () => {
+			if (!imgbedToken) return; // 未配置管理 Token，无法删除图床文件
 			for (const row of mediaRows.results as any[]) {
 				const url: string = row.url || '';
 				if (!url || !imgbedDomain) continue;
@@ -92,9 +94,10 @@ async function deletePostMedia(env: any, ctx: any, postId: string | number) {
 					const parsed = new URL(url);
 					if (parsed.origin === imgbedDomain.replace(/\/+$/, '') && parsed.pathname.startsWith('/file/')) {
 						const filePath = parsed.pathname.replace(/^\/file\//, '');
-						// 尝试删图床（需要 API Token 或有管理 session，失败静默）
+						// 带管理 API Token 调用图床删除接口
 						fetch(`${imgbedDomain}/api/manage/delete/${encodeURIComponent(filePath)}`, {
 							method: 'DELETE',
+							headers: { 'Authorization': `Bearer ${imgbedToken}` },
 						}).catch(() => {});
 					}
 				} catch {}
@@ -120,20 +123,63 @@ function getPepper(): string {
 	return (globalThis as any).PASSWORD_PEPPER || (globalThis as any).webhook_secret || (globalThis as any).JWT_SECRET || '';
 }
 
-async function hashPassword(password: string, usePepper = true): Promise<string> {
-	const input = usePepper && getPepper() ? password + ':' + getPepper() : password;
+const PBKDF2_ITERATIONS = 20_000; // Workers 免费版 CPU 限制（10ms/请求）下安全余量；付费计划可调高至 100k+
+const PBKDF2_PREFIX = 'pbkdf2$';
+
+function toHex(buf: Uint8Array): string {
+	return Array.from(buf).map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+// 旧版 SHA-256(pepper) 哈希 — 仅用于校验存量密码（无盐，不用于新密码）
+async function legacySha256Hash(input: string): Promise<string> {
 	const myText = new TextEncoder().encode(input);
 	const myDigest = await crypto.subtle.digest({ name: 'SHA-256' }, myText);
-	const hashArray = Array.from(new Uint8Array(myDigest));
-	return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+	return toHex(new Uint8Array(myDigest));
+}
+
+// 新版 PBKDF2-SHA256，输出格式: pbkdf2$iterations$saltHex$hashHex（带随机盐，含 pepper）
+async function hashPassword(password: string, _usePepper = true): Promise<string> {
+	const input = getPepper() ? `${password}:${getPepper()}` : password;
+	const salt = crypto.getRandomValues(new Uint8Array(16));
+	const keyMaterial = await crypto.subtle.importKey('raw', new TextEncoder().encode(input), 'PBKDF2', false, ['deriveBits']);
+	const bits = await crypto.subtle.deriveBits(
+		{ name: 'PBKDF2', salt: salt as BufferSource, iterations: PBKDF2_ITERATIONS, hash: 'SHA-256' },
+		keyMaterial,
+		256
+	);
+	return `${PBKDF2_PREFIX}${PBKDF2_ITERATIONS}$${toHex(salt)}$${toHex(new Uint8Array(bits))}`;
+}
+
+async function pbkdf2Verify(input: string, storedHash: string): Promise<boolean> {
+	try {
+		const parts = storedHash.split('$');
+		if (parts.length !== 4) return false;
+		const [, iterStr, saltHex, hashHex] = parts;
+		const iterations = parseInt(iterStr, 10);
+		if (!Number.isFinite(iterations) || iterations < 1) return false;
+		const saltBytes = saltHex.match(/.{2}/g)?.map((h) => parseInt(h, 16)) || [];
+		if (!saltBytes.length) return false;
+		const salt = new Uint8Array(saltBytes);
+		const pepperInput = getPepper() ? `${input}:${getPepper()}` : input;
+		const keyMaterial = await crypto.subtle.importKey('raw', new TextEncoder().encode(pepperInput), 'PBKDF2', false, ['deriveBits']);
+		const bits = await crypto.subtle.deriveBits(
+			{ name: 'PBKDF2', salt: salt as BufferSource, iterations, hash: 'SHA-256' },
+			keyMaterial,
+			256
+		);
+		return toHex(new Uint8Array(bits)) === hashHex;
+	} catch {
+		return false;
+	}
 }
 
 async function verifyPassword(input: string, storedHash: string): Promise<boolean> {
-	// 先尝试 pepper hash
-	if (await hashPassword(input, true) === storedHash) return true;
-	// 兼容老密码（无 pepper）
-	if (await hashPassword(input, false) === storedHash) return true;
-	return false;
+	if (storedHash.startsWith(PBKDF2_PREFIX)) {
+		return pbkdf2Verify(input, storedHash);
+	}
+	// 兼容老密码（SHA-256，无盐）
+	if (getPepper() && (await legacySha256Hash(`${input}:${getPepper()}`)) === storedHash) return true;
+	return (await legacySha256Hash(input)) === storedHash;
 }
 
 function generateToken(): string {
@@ -283,6 +329,13 @@ export default {
 			if (!object) return new Response('Not Found', { status: 404 });
 			const headers = new Headers();
 			object.writeHttpMetadata(headers);
+			const contentType = (headers.get('Content-Type') || '').toLowerCase();
+			const activeContent = contentType.includes('svg') || contentType.includes('html') || contentType.includes('javascript') || contentType.includes('xml');
+			if (activeContent) {
+				headers.set('Content-Type', 'application/octet-stream');
+				headers.set('Content-Disposition', `attachment; filename="${key.split('/').pop()?.replace(/["\\]/g, '_') || 'download'}"`);
+			}
+			headers.set('X-Content-Type-Options', 'nosniff');
 			if (object.httpEtag) headers.set('etag', object.httpEtag);
 			headers.set('Cache-Control', 'public, max-age=31536000, immutable');
 			headers.set('CDN-Cache-Control', 'public, max-age=31536000');
@@ -601,13 +654,16 @@ export default {
 							if (key in featureFlags) featureFlags[key] = row.value === '1';
 						}
 					}
+					const maxUploadSetting = settingsAll.results?.find((row: any) => row.key === 'max_upload_size_mb');
+					const parsedMaxUpload = Number.parseInt(String(maxUploadSetting?.value || '500'), 10);
+					const maxUploadSizeMb = Number.isFinite(parsedMaxUpload) ? Math.min(Math.max(parsedMaxUpload, 1), 500) : 500;
 					return {
 						turnstile_enabled: turnstileFullyConfigured, turnstile_site_key: siteKey,
 						user_count: userCount || 0,
 						jwt_secret_configured: !!env.JWT_SECRET && String(env.JWT_SECRET).length >= 32,
 						r2_public_url: (env as any).R2_PUBLIC_BASE_URL || '',
 						imgbed_domain: (env as any).IMGBED_DOMAIN || '',
-						imgbed_auth_code: (env as any).IMGBED_AUTH_CODE || '',
+						max_upload_size_mb: maxUploadSizeMb,
 						...featureFlags
 					};
 				});
@@ -726,8 +782,9 @@ export default {
 					return jsonResponse({ error: '未上传文件' }, 400);
 				}
 
-				if (!file.type.startsWith('image/')) {
-					return jsonResponse({ error: '仅允许上传图片' }, 400);
+				const allowedImageMimes = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/bmp']);
+				if (!allowedImageMimes.has(file.type.toLowerCase())) {
+					return jsonResponse({ error: '仅允许 JPG、PNG、GIF、WebP 或 BMP 图片（SVG 已禁用）' }, 400);
 				}
 
 // Check file size (2MB = 2 * 1024 * 1024 bytes)
@@ -747,69 +804,58 @@ export default {
 			}
 		}
 
-		// POST /api/media/upload — 登记已上传到 ImgBed 的媒体文件
+		// POST /api/media/upload — 由 Worker 代理上传到 ImgBed 并登记媒体文件
 		if (url.pathname === '/api/media/upload' && method === 'POST') {
 			try {
 				const user = await authenticate(request);
-				const body = await request.json() as {
-					url: string; mime: string; size: number;
-					storage?: string; storage_id?: string;
-					width?: number; height?: number; duration?: number;
-				};
-
-				if (!body.url || !body.mime) {
-					return jsonResponse({ error: '缺少 url 或 mime' }, 400);
+				const imgbedDomain = String((env as any).IMGBED_DOMAIN || '').replace(/\/+$/, '');
+				const imgbedAuthCode = String((env as any).IMGBED_AUTH_CODE || '');
+				if (!imgbedDomain || !imgbedAuthCode) {
+					return jsonResponse({ error: '上传服务未配置' }, 503);
 				}
 
-				// MIME 白名单校验：仅允许图片、视频、压缩包
-				const allowedMimes = [
-					'image/', 'video/',
-					'application/zip', 'application/x-zip-compressed',
-					'application/x-rar-compressed', 'application/x-7z-compressed',
-					'application/gzip', 'application/x-gzip', 'application/x-tar',
-				];
-				const isAllowed = allowedMimes.some(prefix => body.mime.startsWith(prefix));
-				if (!isAllowed) {
-					return jsonResponse({ error: '不支持的文件类型' }, 400);
+				const formData = await request.formData();
+				const file = formData.get('file');
+				if (!file || !(file instanceof File)) return jsonResponse({ error: '未上传文件' }, 400);
+
+				const allowedImageMimes = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/bmp']);
+				const allowedVideoMimes = new Set(['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo']);
+				const allowedArchiveMimes = new Set([
+					'application/zip', 'application/x-zip-compressed', 'application/x-rar-compressed',
+					'application/vnd.rar', 'application/x-7z-compressed', 'application/gzip',
+					'application/x-gzip', 'application/x-tar',
+				]);
+				const mime = file.type.toLowerCase();
+				if (!allowedImageMimes.has(mime) && !allowedVideoMimes.has(mime) && !allowedArchiveMimes.has(mime)) {
+					return jsonResponse({ error: '不支持的文件类型（SVG 及其他可执行格式已禁用）' }, 400);
 				}
 
-				// 大小限制
-				const sizeLimit = body.mime.startsWith('image/') ? 10 * 1024 * 1024
-					: body.mime.startsWith('video/') ? 500 * 1024 * 1024
+				const sizeLimit = allowedImageMimes.has(mime) ? 10 * 1024 * 1024
+					: allowedVideoMimes.has(mime) ? 500 * 1024 * 1024
 					: 300 * 1024 * 1024;
-				if (body.size > sizeLimit) {
-					return jsonResponse({ error: '文件大小超过限制' }, 400);
-				}
+				if (file.size <= 0 || file.size > sizeLimit) return jsonResponse({ error: '文件大小超过限制' }, 400);
 
-				const mediaType = body.mime.startsWith('image/') ? 'image'
-					: body.mime.startsWith('video/') ? 'video'
-					: body.mime.startsWith('audio/') ? 'audio'
-					: 'file';
+				const uploadForm = new FormData();
+				uploadForm.append('file', file, file.name);
+				const uploadUrl = `${imgbedDomain}/upload?authCode=${encodeURIComponent(imgbedAuthCode)}&uploadFolder=tucao&uploadChannel=telegram&autoRetry=false`;
+				const uploadResponse = await fetch(uploadUrl, { method: 'POST', body: uploadForm });
+				if (!uploadResponse.ok) return jsonResponse({ error: `图床上传失败 (${uploadResponse.status})` }, 502);
+				const uploadData = await uploadResponse.json() as Array<{ src?: string }>;
+				const src = uploadData?.[0]?.src;
+				if (!src || !src.startsWith('/')) return jsonResponse({ error: '图床返回格式异常' }, 502);
+				const fileUrl = new URL(src, `${imgbedDomain}/`).toString();
 
+				const mediaType = allowedImageMimes.has(mime) ? 'image' : allowedVideoMimes.has(mime) ? 'video' : 'file';
 				const mediaId = `m_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`;
 				const now = Math.floor(Date.now() / 1000);
-
 				await env.cforum_db.prepare(
-					`INSERT INTO media_files (id, owner_id, url, media_type, mime, size, width, height, duration, storage, storage_id, status, purpose, created_at, updated_at)
-					 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ready', 'post', ?, ?)`
-				).bind(
-					mediaId, user.id.toString(), body.url, mediaType, body.mime, body.size,
-					body.width || null, body.height || null, body.duration || null,
-					body.storage || 'imgbed', body.storage_id || null,
-					now, now
-				).run();
+					`INSERT INTO media_files (id, owner_id, url, media_type, mime, size, storage, status, purpose, created_at, updated_at)
+					 VALUES (?, ?, ?, ?, ?, ?, 'imgbed', 'ready', 'post', ?, ?)`
+				).bind(mediaId, String(user.id), fileUrl, mediaType, mime, file.size, now, now).run();
 
-				return jsonResponse({
-					success: true,
-					id: mediaId,
-					url: body.url,
-					mediaType,
-					mime: body.mime,
-					size: body.size,
-					status: 'ready',
-				});
+				return jsonResponse({ success: true, id: mediaId, url: fileUrl, mediaType, mime, size: file.size, status: 'ready' });
 			} catch (e) {
-				console.error('Media register error:', e);
+				console.error('Media upload error:', e);
 				return handleError(e);
 			}
 		}
@@ -883,6 +929,21 @@ export default {
 				if (!body.post_id || !body.media_ids?.length) {
 					return jsonResponse({ error: '缺少 post_id 或 media_ids' }, 400);
 				}
+				// 帖子必须存在且只能由作者或管理员关联媒体
+				const post = await env.cforum_db.prepare('SELECT author_id FROM posts WHERE id = ?').bind(body.post_id).first<{ author_id: number }>();
+				if (!post) return jsonResponse({ error: '帖子不存在' }, 404);
+				if (post.author_id !== user.id && user.role !== 'admin') {
+					return jsonResponse({ error: '无权修改该帖子' }, 403);
+				}
+				// 越权校验：仅本人或管理员可关联媒体
+				const owned = await env.cforum_db.prepare(
+					`SELECT id FROM media_files WHERE id IN (${body.media_ids.map(() => '?').join(',')}) AND owner_id = ?`
+				).bind(...body.media_ids, String(user.id)).all();
+				const ownedIds = new Set((owned.results || []).map((r: any) => r.id));
+				const foreign = body.media_ids.filter((id: string) => !ownedIds.has(id));
+				if (foreign.length && user.role !== 'admin') {
+					return jsonResponse({ error: `无权关联媒体: ${foreign.join(', ')}` }, 403);
+				}
 				const now = Math.floor(Date.now() / 1000);
 				const stmt = env.cforum_db.prepare(
 					'INSERT OR IGNORE INTO post_media (post_id, media_id, position, created_at) VALUES (?, ?, ?, ?)'
@@ -926,6 +987,29 @@ export default {
 					return jsonResponse({ error: '用户名或密码错误' }, 401);
 				}
 
+				const temporary = await env.cforum_db.prepare(
+					'SELECT id, expires_at FROM temp_passwords WHERE user_id = ? AND temp_password_hash = ? AND is_used = 0 ORDER BY id DESC LIMIT 1'
+				).bind(user.id, user.password).first<{ id: number; expires_at: number }>();
+				if (temporary) {
+					const expiresAt = Number(temporary.expires_at);
+					// 兼容早期迁移中以毫秒保存的记录；新记录统一使用 Unix 秒。
+					const expired = expiresAt > 100_000_000_000
+						? expiresAt <= Date.now()
+						: expiresAt <= Math.floor(Date.now() / 1000);
+					if (expired) return jsonResponse({ error: '临时密码已过期，请联系管理员重新生成' }, 401);
+				}
+
+				// 旧版 SHA-256 哈希自动升级为 PBKDF2（登录成功后一次性完成）
+				if (!user.password.startsWith(PBKDF2_PREFIX)) {
+					try {
+						const upgradedHash = await hashPassword(password);
+						await env.cforum_db.prepare('UPDATE users SET password = ? WHERE id = ?').bind(upgradedHash, user.id).run();
+						user.password = upgradedHash;
+					} catch (e) {
+						console.error('Password upgrade failed:', e);
+					}
+				}
+
 				// TOTP Check
 				if (user.totp_enabled) {
 					if (!totp_code) {
@@ -966,7 +1050,8 @@ export default {
 						avatar_url: user.avatar_url,
 						role: user.role || 'user',
 						totp_enabled: !!user.totp_enabled,
-						email_notifications: user.email_notifications === 1
+						email_notifications: user.email_notifications === 1,
+						must_change_password: !!temporary
 					}
 				});
 			} catch (e) {
@@ -1013,7 +1098,7 @@ export default {
 						newAvatarUrl = await generateIdenticon(String(user_id));
 					} else {
 						if (avatar_url.length > 2000) return jsonResponse({ error: '头像链接过长（最多 2000 个字符）' }, 400);
-						if (!/^https?:\/\//i.test(avatar_url) && !avatar_url.startsWith('data:image/svg+xml')) return jsonResponse({ error: '头像链接格式无效（需以 http:// 或 https:// 开头）' }, 400);
+						if (!/^https?:\/\//i.test(avatar_url)) return jsonResponse({ error: '头像链接格式无效（需以 http:// 或 https:// 开头）' }, 400);
 						newAvatarUrl = avatar_url;
 					}
 				}
@@ -1191,9 +1276,13 @@ export default {
 					"INSERT INTO password_history (user_id, password_hash, created_at) VALUES (?, ?, ?)"
 				).bind(user_id, user.password, Date.now() / 1000).run();
 
-				// 更新密码
 				const newHash = await hashPassword(new_password);
-				await env.cforum_db.prepare('UPDATE users SET password = ? WHERE id = ?').bind(newHash, user_id).run();
+				// New password invalidates every temporary password and existing session.
+				await env.cforum_db.batch([
+					env.cforum_db.prepare('UPDATE users SET password = ? WHERE id = ?').bind(newHash, user_id),
+					env.cforum_db.prepare('UPDATE temp_passwords SET is_used = 1 WHERE user_id = ?').bind(user_id),
+					env.cforum_db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(user_id),
+				]);
 
 				await security.logAudit(user_id, 'CHANGE_PASSWORD', 'user', String(user_id), {}, request);
 
@@ -1467,7 +1556,7 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 						await env.cforum_db.prepare('UPDATE users SET avatar_url = ? WHERE id = ?').bind(identicon, id).run();
 					} else {
 						if (avatar_url.length > 500) return jsonResponse({ error: '头像链接过长（最多 500 个字符）' }, 400);
-						if (!/^https?:\/\//i.test(avatar_url) && !avatar_url.startsWith('data:image/svg+xml')) return jsonResponse({ error: '头像链接格式无效' }, 400);
+						if (!/^https?:\/\//i.test(avatar_url)) return jsonResponse({ error: '头像链接格式无效' }, 400);
 						await env.cforum_db.prepare('UPDATE users SET avatar_url = ? WHERE id = ?').bind(avatar_url, id).run();
 					}
 
@@ -1543,7 +1632,8 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 		if (url.pathname === '/api/notifications' && method === 'GET') {
 			try {
 				const userPayload = await authenticate(request);
-				const limit = parseInt(url.searchParams.get('limit') || '20');
+				const limitRaw = Number.parseInt(url.searchParams.get('limit') || '20', 10);
+				const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(limitRaw, 1), 100) : 20;
 				const { results } = await env.cforum_db.prepare(
 					'SELECT id, type, title, message, actor_id, is_read, created_at FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT ?'
 				).bind(userPayload.id, limit).all();
@@ -2034,24 +2124,6 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 
 		// --- END ADMIN ROUTES ---
 
-		// TEST: Email Debug
-		if (url.pathname === '/api/test-email' && method === 'POST') {
-			try {
-				const body = await request.json() as any;
-				const { to } = body;
-				if (!to) return jsonResponse({ error: '缺少收件人地址' }, 400);
-
-				console.log('[DEBUG] Starting test email to:', to);
-				await sendEmail(to, '测试邮件', '<h1>你好</h1><p>这是一封测试邮件。</p>', env);
-				console.log('[DEBUG] Test email sent successfully');
-
-				return jsonResponse({ success: true, message: '邮件已发送' });
-			} catch (e) {
-				console.error('[DEBUG] Test email failed:', e);
-				return handleError(e);
-			}
-		}
-
 		// AUTH: Register
 		if (url.pathname === '/api/register' && method === 'POST') {
 			try {
@@ -2076,7 +2148,7 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 				const inviteOnly = inviteSetting && inviteSetting.value === '1';
 				if (inviteOnly) {
 					if (!invitation_code) return jsonResponse({ error: '需要邀请码才能注册' }, 400);
-					const code = await env.cforum_db.prepare('SELECT * FROM invitation_codes WHERE code = ? AND is_active = 1 AND used_by IS NULL AND expires_at > ?').bind(invitation_code, Date.now()).first();
+				const code = await env.cforum_db.prepare('SELECT id FROM invitation_codes WHERE code = ? AND is_active = 1 AND used_by IS NULL AND expires_at > ?').bind(invitation_code, Date.now()).first<{ id: number }>();
 					if (!code) return jsonResponse({ error: '邀请码无效或已过期' }, 400);
 				}
 
@@ -2110,9 +2182,15 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 					if (userId) {
 						const identicon = await generateIdenticon(String(userId));
 						await env.cforum_db.prepare('UPDATE users SET avatar_url = ? WHERE id = ?').bind(identicon, userId).run();
-						// Mark invitation code as used
+						// Mark invitation code as used only if it is still available. D1 uniqueness plus this conditional claim prevents reuse.
 						if (invitation_code) {
-							await env.cforum_db.prepare('UPDATE invitation_codes SET used_by = ?, used_at = CURRENT_TIMESTAMP WHERE code = ?').bind(userId, invitation_code).run();
+							const claimed = await env.cforum_db.prepare(
+								'UPDATE invitation_codes SET used_by = ?, used_at = CURRENT_TIMESTAMP WHERE code = ? AND is_active = 1 AND used_by IS NULL AND expires_at > ?'
+							).bind(userId, invitation_code, Date.now()).run();
+							if ((claimed.meta?.changes || 0) !== 1) {
+								await env.cforum_db.prepare('DELETE FROM users WHERE id = ?').bind(userId).run();
+								return jsonResponse({ error: '邀请码已被使用或已过期，请重试' }, 409);
+							}
 						}
 					} else {
 						// Fallback if ID retrieval fails (rare in D1)
@@ -2122,7 +2200,7 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 					}
 				}
 
-				return jsonResponse({ success, message: '注册成功，请前往邮箱完成验证。' }, 201);
+				return jsonResponse({ success, message: '注册成功，现在可以登录了。' }, 201);
 			} catch (e: any) {
 				if (e.message && e.message.includes('UNIQUE constraint failed')) {
 					return jsonResponse({ error: 'Email already exists' }, 409);
@@ -2154,9 +2232,11 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 			}
 		}
 
-		// GET /api/users — 管理后台用，不缓存
+		// GET /api/users — 需登录（防用户枚举）
 		if (url.pathname === '/api/users' && method === 'GET') {
 			try {
+				const userPayload = await authenticate(request);
+				if (!userPayload) return jsonResponse({ error: 'Unauthorized' }, 401);
 				const { results } = await env.cforum_db.prepare(
 					'SELECT id, username, created_at FROM users'
 				).all();
@@ -2180,8 +2260,10 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 		// GET /posts
 		if (url.pathname === '/api/posts' && method === 'GET') {
 			try {
-				const limit = parseInt(url.searchParams.get('limit') || '20');
-				const offset = parseInt(url.searchParams.get('offset') || '0');
+				const limitRaw = Number.parseInt(url.searchParams.get('limit') || '20', 10);
+				const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(limitRaw, 1), 100) : 20;
+				const offsetRaw = Number.parseInt(url.searchParams.get('offset') || '0', 10);
+				const offset = Number.isFinite(offsetRaw) ? Math.min(Math.max(offsetRaw, 0), 1000000) : 0;
 				const categoryId = url.searchParams.get('category_id');
 				const q = (url.searchParams.get('q') || url.searchParams.get('query') || '').trim();
 				const sortByRaw = (url.searchParams.get('sort_by') || 'time').trim().toLowerCase();
@@ -2374,6 +2456,41 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 				await security.logAudit(userPayload.id, 'UPDATE_POST', 'post', postId, { title_length: title.length }, request);
 
 				return jsonResponse({ success: true });
+			} catch (e) {
+				return handleError(e);
+			}
+		}
+
+		// POST /api/posts/thumbnail — 存储视频缩略图 URL（供 VideoThumbnail 组件复用）
+		if (url.pathname === '/api/posts/thumbnail' && method === 'POST') {
+			try {
+				const userPayload = await authenticate(request);
+				const body = await request.json() as { post_id: number; thumbnail_url: string };
+				if (!body.post_id || !body.thumbnail_url) {
+					return jsonResponse({ error: '缺少 post_id 或 thumbnail_url' }, 400);
+				}
+				// 查询当前帖子是否已有缩略图（同时校验作者/管理员）
+				const post = await env.cforum_db.prepare(
+					'SELECT author_id, thumbnail_url FROM posts WHERE id = ?'
+				).bind(body.post_id).first<{ author_id: number; thumbnail_url: string | null }>();
+				if (!post) return jsonResponse({ error: '帖子不存在' }, 404);
+				// 越权校验：仅帖子作者或管理员可设置缩略图
+				if (post.author_id !== userPayload.id && userPayload.role !== 'admin') {
+					return jsonResponse({ error: '无权设置该帖子的缩略图' }, 403);
+				}
+				// 缩略图 URL 格式校验（防注入）
+				if (!/^https?:\/\/[^\s"'<>]+$/i.test(body.thumbnail_url)) {
+					return jsonResponse({ error: '缩略图 URL 格式无效' }, 400);
+				}
+				// 如果已有缩略图，直接返回现有的（幂等）
+				if (post.thumbnail_url) {
+					return jsonResponse({ thumbnail_url: post.thumbnail_url });
+				}
+				// 存储新的缩略图 URL
+				await env.cforum_db.prepare(
+					'UPDATE posts SET thumbnail_url = ? WHERE id = ?'
+				).bind(body.thumbnail_url, body.post_id).run();
+				return jsonResponse({ thumbnail_url: body.thumbnail_url });
 			} catch (e) {
 				return handleError(e);
 			}
@@ -2666,7 +2783,7 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 
 				const tempPassword = Array.from({length: 12}, () => 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'[Math.floor(Math.random() * 56)]).join('');
 				const tempHash = await hashPassword(tempPassword);
-				const expiresAt = Date.now() + 86400000; // 24h
+				const expiresAt = Math.floor(Date.now() / 1000) + 86400; // 24h, seconds to match session/nonces
 
 				// Store old password hash in history
 				const oldUser = await env.cforum_db.prepare('SELECT password FROM users WHERE id = ?').bind(id).first<{password: string}>();
@@ -2674,11 +2791,15 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 					await env.cforum_db.prepare('INSERT INTO password_history (user_id, password_hash) VALUES (?, ?)').bind(id, oldUser.password).run();
 				}
 
-				// Set temp password
-				await env.cforum_db.prepare('UPDATE users SET password = ? WHERE id = ?').bind(tempHash, id).run();
-				await env.cforum_db.prepare('INSERT INTO temp_passwords (user_id, temp_password, temp_password_hash, expires_at, created_by) VALUES (?, ?, ?, ?, ?)').bind(id, tempPassword, tempHash, expiresAt, userPayload.id).run();
+				// Set temp password; previous temporary credentials and sessions are revoked.
+				await env.cforum_db.batch([
+					env.cforum_db.prepare('UPDATE users SET password = ? WHERE id = ?').bind(tempHash, id),
+					env.cforum_db.prepare('UPDATE temp_passwords SET is_used = 1 WHERE user_id = ?').bind(id),
+					env.cforum_db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(id),
+					env.cforum_db.prepare('INSERT INTO temp_passwords (user_id, temp_password, temp_password_hash, expires_at, created_by) VALUES (?, ?, ?, ?, ?)').bind(id, '', tempHash, expiresAt, userPayload.id),
+				]);
 				// 清理该用户的过期临时密码
-				await env.cforum_db.prepare('DELETE FROM temp_passwords WHERE user_id = ? AND (is_used = 1 OR expires_at < ?)').bind(id, Date.now()).run();
+				await env.cforum_db.prepare('DELETE FROM temp_passwords WHERE user_id = ? AND is_used = 1 AND expires_at < ?').bind(id, Math.floor(Date.now() / 1000)).run();
 				await security.logAudit(userPayload.id, 'RESET_PASSWORD', 'user', String(id), {}, request);
 
 				return jsonResponse({ success: true, temp_password: tempPassword, expires_at: expiresAt, username: user.username });
@@ -2715,7 +2836,18 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 				const postId = body.postId || body.post_id;
 				if (!postId) return jsonResponse({ error: '缺少帖子ID' }, 400);
 
+				const post = await env.cforum_db.prepare('SELECT author_id FROM posts WHERE id = ?').bind(parseInt(postId)).first<{ author_id: number }>();
+				if (!post) return jsonResponse({ error: '帖子不存在' }, 404);
+				if (post.author_id !== userPayload.id && userPayload.role !== 'admin') {
+					return jsonResponse({ error: '无权给该帖子添加附件' }, 403);
+				}
+				if (!/^https?:\/\/[^\s"'<>]+$/i.test(link_url) || link_url.length > 2048 || file_name.length > 255) {
+					return jsonResponse({ error: '附件链接或文件名格式无效' }, 400);
+				}
+
 				const passwordHash = password ? await hashPassword(password) : '';
+				if (typeof extract_code === 'string' && extract_code.length > 64) return jsonResponse({ error: '提取码过长' }, 400);
+				if (typeof password === 'string' && password.length > 128) return jsonResponse({ error: '附件密码过长' }, 400);
 				await env.cforum_db.prepare(
 					'INSERT INTO encrypted_attachments (post_id, user_id, link_url, file_name, extract_code, password_hash, is_encrypted) VALUES (?, ?, ?, ?, ?, ?, ?)'
 				).bind(parseInt(postId), userPayload.id, link_url, file_name, extract_code || '', passwordHash, password ? 1 : 0).run();
@@ -2763,11 +2895,13 @@ const user = await env.cforum_db.prepare('SELECT * FROM users WHERE email_change
 					return jsonResponse({ error: '缺少 url 参数' }, 400);
 				}
 				// 只允许代理视频文件，防止滥用
-				// 优先校验视频文件扩展名；video.twimg.com 等 CDN 可能不带扩展名，也放行
+				// 1) 视频文件扩展名白名单；2) 图床域名精确匹配（host 完全一致 + /file/ 或 /tucao/ 路径）
 				const imgbedHost = env.IMGBED_DOMAIN ? new URL(env.IMGBED_DOMAIN).host : '';
+				let targetHost = '';
+				try { targetHost = new URL(targetUrl).host; } catch {}
 				const isVideo = /\.(mp4|webm|mov|ogg|mkv|m3u8)(\?|$)/i.test(targetUrl)
-					|| /video\.twimg\.com/i.test(targetUrl)
-					|| (imgbedHost && targetUrl.includes(imgbedHost));
+					|| /^video\.twimg\.com$/i.test(targetHost)
+					|| (imgbedHost && targetHost === imgbedHost && /^\/(file|tucao)\//i.test(new URL(targetUrl).pathname));
 				if (!isVideo) {
 					return jsonResponse({ error: '只允许代理视频文件' }, 400);
 				}

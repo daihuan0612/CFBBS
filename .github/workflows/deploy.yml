@@ -72,15 +72,18 @@ jobs:
       # ── Worker: upload secrets before deploying ──
       - name: Upload Worker secrets
         run: |
-          npx wrangler secret put JWT_SECRET <<< "$JWT_SECRET"
+          npx wrangler versions secret put JWT_SECRET <<< "$JWT_SECRET"
           if [ -n "$ADMIN_EMAIL" ]; then
-            npx wrangler secret put ADMIN_EMAIL <<< "$ADMIN_EMAIL"
+            npx wrangler versions secret put ADMIN_EMAIL <<< "$ADMIN_EMAIL"
           fi
           if [ -n "$ADMIN_PASSWORD" ]; then
-            npx wrangler secret put ADMIN_PASSWORD <<< "$ADMIN_PASSWORD"
+            npx wrangler versions secret put ADMIN_PASSWORD <<< "$ADMIN_PASSWORD"
           fi
           if [ -n "$ADMIN_NICKNAME" ]; then
-            npx wrangler secret put ADMIN_NICKNAME <<< "$ADMIN_NICKNAME"
+            npx wrangler versions secret put ADMIN_NICKNAME <<< "$ADMIN_NICKNAME"
+          fi
+          if [ -n "$IMGBED_AUTH_CODE" ]; then
+            npx wrangler versions secret put IMGBED_AUTH_CODE <<< "$IMGBED_AUTH_CODE"
           fi
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
@@ -89,6 +92,7 @@ jobs:
           ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
           ADMIN_NICKNAME: ${{ secrets.ADMIN_NICKNAME }}
+          IMGBED_AUTH_CODE: ${{ secrets.IMGBED_AUTH_CODE }}
 
       # ── Worker: deploy so we know the real URL ──
       - name: Deploy Worker
@@ -111,7 +115,7 @@ jobs:
       - name: Upload BASE_URL (optional)
         run: |
           if [ -n "$BASE_URL" ]; then
-            npx wrangler secret put BASE_URL <<< "$BASE_URL"
+            npx wrangler versions secret put BASE_URL <<< "$BASE_URL"
           fi
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
